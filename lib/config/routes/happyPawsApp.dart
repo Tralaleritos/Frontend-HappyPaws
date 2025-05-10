@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:happyp/views_pet_owner/auth/login/login_screen.dart';
-import 'package:happyp/views_pet_owner/auth/register_screen.dart';
+import 'package:happyp/screens/home_caregiver.dart';
+import 'package:happyp/screens/home_pet_owner.dart';
+import 'package:happyp/auth/login_screen.dart';
+import 'package:happyp/auth/register_screen.dart';
 import 'package:happyp/views_pet_owner/home/home_screen.dart';
 import 'package:happyp/views_pet_owner/message/messages_screen.dart';
 import 'package:happyp/views_pet_owner/notificactions/notification_screen.dart';
@@ -54,6 +56,7 @@ class HappyPawsApp extends StatelessWidget {
       // routes
       initialRoute: '/inicio',
       routes: {
+        '/': (context) => const InicioScreen(), // <- Pantalla de login
         '/inicio': (context) => const InicioScreen(),
         '/register': (context) => const RegisterScreen(),
         '/home': (context) => const HomeScreen(),
@@ -61,6 +64,8 @@ class HappyPawsApp extends StatelessWidget {
         '/messages': (context) => const MessagesScreen(),
         '/notifications': (context) => const NotificationScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/home_caregiver': (_) => HomeCaregiver(),
+        '/home_pet_owner': (_) => HomePetOwner(),
       },
     );
   }
