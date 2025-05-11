@@ -1,0 +1,2 @@
+D:/Universidad/ciclo10/Agil/TrabajoP/Frontend-HappyPaws/android/app/.cxx/Debug/5k2n205t/armeabi-v7a/CMakeFiles/edit_cache.dir
+D:/Universidad/ciclo10/Agil/TrabajoP/Frontend-HappyPaws/android/app/.cxx/Debug/5k2n205t/armeabi-v7a/CMakeFiles/rebuild_cache.dir

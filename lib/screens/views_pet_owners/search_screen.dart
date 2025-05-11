@@ -4,6 +4,8 @@ import '../../models/caregiver_profile.dart';
 import '../../services/data_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/main_navigation_scaffold.dart';
+import 'caregiver_detail_screen.dart'; // Asegúrate de que el path es correcto
+
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -285,12 +287,16 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vista de detalle en desarrollo')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CaregiverDetailScreen(caregiver: caregiver),
+                      ),
                     );
                   },
                   child: const Text('Ver perfil'),
                 ),
+
               ],
             ),
           ],
