@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:happyp/screens/home_caregiver.dart';
-import 'package:happyp/screens/home_pet_owner.dart';
+import 'package:happyp/screens/views_caregiver/caregiver_profile_form_screen.dart';
+import 'package:happyp/screens/views_caregiver/home_caregiver.dart';
+import 'package:happyp/screens/views_pet_owners/home_pet_owner.dart';
 import 'package:happyp/auth/login_screen.dart';
 import 'package:happyp/auth/register_screen.dart';
 import 'package:happyp/views_pet_owner/home/home_screen.dart';
 import 'package:happyp/views_pet_owner/message/messages_screen.dart';
 import 'package:happyp/views_pet_owner/notificactions/notification_screen.dart';
 import 'package:happyp/views_pet_owner/profile/profile_screen.dart';
-import 'package:happyp/views_pet_owner/search/search_screen.dart';
+import 'package:happyp/screens/views_pet_owners/search_screen.dart';
 
 import '../themes/colors/AppColors.dart';
 import '../themes/typography/AppTypography.dart';
@@ -59,13 +60,13 @@ class HappyPawsApp extends StatelessWidget {
         '/': (context) => const InicioScreen(), // <- Pantalla de login
         '/inicio': (context) => const InicioScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const HomePetOwner(),
         '/search': (context) => const SearchScreen(),
         '/messages': (context) => const MessagesScreen(),
         '/notifications': (context) => const NotificationScreen(),
         '/profile': (context) => const ProfileScreen(),
-        '/home_caregiver': (_) => HomeCaregiver(),
-        '/home_pet_owner': (_) => HomePetOwner(),
+        '/home_caregiver': (_) => CaregiverProfileFormScreen(),
+        '/home_pet_owner': (_) => HomeScreen(),
       },
     );
   }
