@@ -5,6 +5,7 @@ import 'package:happyp/screens/views_pet_owners/add_pet_screen.dart';
 import '../../../models/pet.dart';
 import '../../../widgets/main_navigation_scaffold.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/pet_service.dart';
 
 class HomePetOwner extends StatefulWidget {
   const HomePetOwner({super.key});
@@ -14,7 +15,36 @@ class HomePetOwner extends StatefulWidget {
 }
 
 class _HomePetOwnerState extends State<HomePetOwner> {
-  final List<Pet> _pets = [];
+  List<Pet> _pets = [];
+  bool _isLoading = true;
+  final PetService _petService = PetService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPets();
+  }
+
+  Future<void> _loadPets() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final userEmail = authService.currentUser?.email ?? '';
+
+    if (userEmail.isNotEmpty) {
+      final pets = await _petService.getPets(userEmail);
+      setState(() {
+        _pets = pets;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   void _navigateToAddPet() async {
     final result = await Navigator.push(
@@ -23,9 +53,39 @@ class _HomePetOwnerState extends State<HomePetOwner> {
     );
 
     if (result != null && result is Pet) {
-      setState(() {
-        _pets.add(result);
-      });
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final userEmail = authService.currentUser?.email ?? '';
+
+      if (userEmail.isNotEmpty) {
+        await _petService.savePet(userEmail, result);
+        _loadPets(); // Recargar la lista de mascotas
+      }
+    }
+  }
+
+  Future<void> _deletePet(Pet pet) async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final userEmail = authService.currentUser?.email ?? '';
+
+    if (userEmail.isNotEmpty) {
+      // Obtener las mascotas actuales
+      final pets = await _petService.getPets(userEmail);
+
+      // Filtrar la mascota a eliminar (comparando por nombre y especie)
+      // Esto asume que la combinación de nombre y especie es única
+      final updatedPets = pets.where((p) =>
+      !(p.name == pet.name && p.specie == pet.specie && p.age == pet.age)
+      ).toList();
+
+      // Limpiar todas las mascotas
+      await _petService.clearPets(userEmail);
+
+      // Guardar las mascotas actualizadas
+      for (var p in updatedPets) {
+        await _petService.savePet(userEmail, p);
+      }
+
+      _loadPets(); // Recargar la lista de mascotas
     }
   }
 
@@ -77,6 +137,11 @@ class _HomePetOwnerState extends State<HomePetOwner> {
               onPressed: () {
                 Navigator.pushNamed(context, '/notifications');
               },
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Recargar mascotas',
+              onPressed: _loadPets,
             ),
             IconButton(
               icon: const Icon(Icons.logout),
@@ -146,6 +211,14 @@ class _HomePetOwnerState extends State<HomePetOwner> {
   }
 
   Widget _buildPetsList() {
+    if (_isLoading) {
+      return const Expanded(
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Expanded(
       child: _pets.isEmpty
           ? Center(
@@ -332,10 +405,8 @@ class _HomePetOwnerState extends State<HomePetOwner> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
-                _pets.remove(pet);
-              });
               Navigator.of(context).pop();
+              _deletePet(pet);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('${pet.name} ha sido eliminado')),
               );
