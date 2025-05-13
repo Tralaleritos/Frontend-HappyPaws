@@ -55,7 +55,7 @@ class _InicioScreenState extends State<InicioScreen> {
           print("Rol principal: ${authService.userRole}");
 
           // Navegación basada en roles
-          if (authService.hasRole('CARETAKER')) {
+          if (authService.hasRole('CAREGIVER')) {
             print("Navegando a pantalla de cuidador");
             Navigator.pushReplacementNamed(context, '/home_caregiver');
           } else if (authService.hasRole('ADMIN')) {

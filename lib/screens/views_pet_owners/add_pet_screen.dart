@@ -37,10 +37,11 @@ class _AddPetScreenState extends State<AddPetScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final currentUser = authService.currentUser;
 
-      if (currentUser == null || currentUser.role != 'pet_owner') {
+      if (currentUser == null || !authService.hasRole('OWNER')) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Solo los dueños de mascotas pueden guardar mascotas.')),
         );
+        setState(() => _isSaving = false); // No olvides resetear el estado
         return;
       }
 

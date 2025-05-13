@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../widgets/main_navigation_scaffold.dart'; // Ajusta esta ruta si es necesario
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return MainNavigationScaffold(
+      currentIndex: 3,
       appBar: AppBar(
         title: const Text('Mi Perfil'),
         actions: [
@@ -18,7 +20,6 @@ class ProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Sección de encabezado del perfil
             Container(
               padding: const EdgeInsets.symmetric(vertical: 30),
               color: Theme.of(context).colorScheme.tertiary.withOpacity(0.2),
@@ -45,18 +46,16 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                      children: const [
                         Icon(
                           Icons.location_on,
                           size: 16,
                           color: Colors.grey,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           'Ciudad de México',
-                          style: TextStyle(
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(color: Colors.grey),
                         ),
                       ],
                     ),
@@ -69,7 +68,6 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
-            // Sección de mascotas
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -110,7 +108,6 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  // Próximas citas
                   Text(
                     'Próximas Citas',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -122,8 +119,7 @@ class ProfileScreen extends StatelessWidget {
                     'María López',
                     'Mañana, 3:00 PM',
                   ),
-                  const SizedBox(height:
-                  16),
+                  const SizedBox(height: 16),
                   _buildAppointmentCard(
                     context,
                     'Veterinario para Luna',
@@ -131,7 +127,6 @@ class ProfileScreen extends StatelessWidget {
                     'Viernes, 10:00 AM',
                   ),
                   const SizedBox(height: 24),
-                  // Historial de servicios
                   Text(
                     'Historial de Servicios',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -156,54 +151,10 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: 3,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Buscar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message),
-            label: 'Mensajes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, '/home');
-              break;
-            case 1:
-              Navigator.pushReplacementNamed(context, '/search');
-              break;
-            case 2:
-              Navigator.pushReplacementNamed(context, '/messages');
-              break;
-            case 3:
-            // Ya estamos en Profile
-              break;
-          }
-        },
-      ),
     );
   }
 
-  Widget _buildPetCard(
-      BuildContext context,
-      String name,
-      String type,
-      String breed,
-      ) {
+  Widget _buildPetCard(BuildContext context, String name, String type, String breed) {
     return Container(
       width: 120,
       margin: const EdgeInsets.only(right: 12),
@@ -226,28 +177,18 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             name,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           Text(
-            '$breed',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
+            breed,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAppointmentCard(
-      BuildContext context,
-      String title,
-      String provider,
-      String time,
-      ) {
+  Widget _buildAppointmentCard(BuildContext context, String title, String provider, String time) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -268,15 +209,11 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
                     provider,
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
+                    style: const TextStyle(color: Colors.grey),
                   ),
                 ],
               ),
@@ -292,12 +229,9 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                const Text(
                   'Confirmado',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.green,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.green),
                 ),
               ],
             ),
@@ -307,12 +241,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildServiceHistoryCard(
-      BuildContext context,
-      String service,
-      String provider,
-      String time,
-      ) {
+  Widget _buildServiceHistoryCard(BuildContext context, String service, String provider, String time) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -330,58 +259,22 @@ class ProfileScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    service,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    provider,
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
+                  Text(service, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(provider, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
+                Text(time, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 Row(
-                  children: [
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
-                    Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 16,
-                    ),
+                  children: const [
+                    Icon(Icons.star, color: Colors.amber, size: 16),
+                    Icon(Icons.star, color: Colors.amber, size: 16),
+                    Icon(Icons.star, color: Colors.amber, size: 16),
+                    Icon(Icons.star, color: Colors.amber, size: 16),
+                    Icon(Icons.star, color: Colors.amber, size: 16),
                   ],
                 ),
               ],

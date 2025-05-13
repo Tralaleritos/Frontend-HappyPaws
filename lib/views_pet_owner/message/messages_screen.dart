@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../widgets/main_navigation_scaffold.dart'; // Asegúrate de que la ruta es correcta
 
 class MessagesScreen extends StatelessWidget {
   const MessagesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return MainNavigationScaffold(
+      currentIndex: 2, // Estás en la sección "Mensajes"
       appBar: AppBar(
         title: const Text('Mensajes'),
       ),
@@ -13,45 +15,6 @@ class MessagesScreen extends StatelessWidget {
         itemCount: 10,
         itemBuilder: (context, index) {
           return _buildMessageCard(context);
-        },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: 2,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Buscar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message),
-            label: 'Mensajes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, '/home');
-              break;
-            case 1:
-              Navigator.pushReplacementNamed(context, '/search');
-              break;
-            case 2:
-            // Ya estamos en Messages
-              break;
-            case 3:
-              Navigator.pushReplacementNamed(context, '/profile');
-              break;
-          }
         },
       ),
     );
@@ -86,7 +49,7 @@ class MessagesScreen extends StatelessWidget {
         children: [
           Text(
             '10:30 AM',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
               color: Colors.grey,
             ),
