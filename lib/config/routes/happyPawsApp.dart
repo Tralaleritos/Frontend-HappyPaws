@@ -65,8 +65,9 @@ class HappyPawsApp extends StatelessWidget {
         '/messages': (context) => const MessagesScreen(),
         '/notifications': (context) => const NotificationScreen(),
         '/profile': (context) => const ProfileScreen(),
-        '/home_caregiver': (_) => CaregiverProfileFormScreen(),
-        '/home_pet_owner': (_) => HomeScreen(),
+        '/profile_caregiver': (context) => const CaregiverProfileFormScreen(),
+        '/home_caregiver': (_) => HomeCaregiver(),
+        '/home_pet_owner': (context) => const HomeScreen(),
         '/email_code_validation': (_) => EmailCodeValidation(),
       },
     );

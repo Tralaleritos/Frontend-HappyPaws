@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/main_navigation_scaffold_alt.dart'; // Asegúrate de importar el scaffold alternativo
 
 class HomeCaregiver extends StatelessWidget {
   @override
@@ -8,13 +9,14 @@ class HomeCaregiver extends StatelessWidget {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
 
-    return Scaffold(
+    return MainNavigationScaffoldAlt(
+      currentIndex: 0, // Índice correspondiente a "Inicio"
       appBar: AppBar(
-        title: Text('Cuidador - Inicio'),
+        title: const Text('Cuidador - Inicio'),
         backgroundColor: Colors.teal,
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
+            icon: const Icon(Icons.logout),
             onPressed: () async {
               await authService.logout();
               Navigator.pushReplacementNamed(context, '/');
@@ -26,7 +28,7 @@ class HomeCaregiver extends StatelessWidget {
         child: Text(
           'Bienvenido Cuidador\n${user?.username ?? ''}',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24),
+          style: const TextStyle(fontSize: 24),
         ),
       ),
     );

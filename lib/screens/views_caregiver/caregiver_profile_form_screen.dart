@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../models/caregiver_profile.dart';
 import '../../../services/data_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../widgets/main_navigation_scaffold_alt.dart'; // IMPORTANTE: asegúrate de importar esto
 
 class CaregiverProfileFormScreen extends StatefulWidget {
   const CaregiverProfileFormScreen({super.key});
@@ -34,34 +35,29 @@ class _CaregiverProfileFormScreenState extends State<CaregiverProfileFormScreen>
           description: descriptionController.text,
           tags: tagsController.text.split(',').map((e) => e.trim()).toList(),
           price: double.parse(priceController.text),
-          rating: 4.8, // default
+          rating: 4.8,
         );
 
         bool saved = await _dataService.saveCaregiverProfile(profile);
 
         if (!mounted) return;
 
-        if (saved) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Tu perfil ha sido guardado correctamente!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(saved
+                ? '¡Tu perfil ha sido guardado correctamente!'
+                : 'Hubo un problema al guardar tu perfil. Inténtalo de nuevo.'),
+            backgroundColor: saved ? Colors.green : Colors.red,
+          ),
+        );
 
+        if (saved) {
           _formKey.currentState!.reset();
           nameController.clear();
           specialtyController.clear();
           descriptionController.clear();
           tagsController.clear();
           priceController.clear();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Hubo un problema al guardar tu perfil. Inténtalo de nuevo.'),
-              backgroundColor: Colors.red,
-            ),
-          );
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -80,11 +76,34 @@ class _CaregiverProfileFormScreenState extends State<CaregiverProfileFormScreen>
     }
   }
 
+
   Future<void> _logout() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    await authService.logout();
-    if (!mounted) return;
-    Navigator.pushNamedAndRemoveUntil(context, '/inicio', (route) => false);
+    // Mostrar diálogo de confirmación
+    bool confirmLogout = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Estás seguro que deseas cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí, cerrar sesión'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (confirmLogout) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.logout();
+      if (context.mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/inicio', (_) => false);
+      }
+    }
   }
 
   @override
@@ -99,7 +118,8 @@ class _CaregiverProfileFormScreenState extends State<CaregiverProfileFormScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return MainNavigationScaffoldAlt(
+      currentIndex: 3, // este es el menú actual (Menú)
       appBar: AppBar(
         title: const Text('Crear perfil de cuidador'),
         actions: [
