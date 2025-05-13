@@ -31,7 +31,6 @@ class _InicioScreenState extends State<InicioScreen> {
     super.dispose();
   }
 
-  //  iniciar sesión con email y contraseña
   Future<void> _signInWithEmailAndPassword() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -40,27 +39,47 @@ class _InicioScreenState extends State<InicioScreen> {
 
       try {
         final authService = Provider.of<AuthService>(context, listen: false);
+
+        // Usar el servicio de autenticación para iniciar sesión
         final success = await authService.login(
           _emailController.text.trim(),
           _passwordController.text,
         );
 
+        if (!mounted) return;
+
         if (success && authService.currentUser != null) {
-          final role = authService.currentUser!.role;
+          // Para depuración
+          print("Login exitoso para usuario: ${authService.currentUser!.username}");
+          print("Roles del usuario: ${authService.currentUser!.roles.map((r) => r.name).join(', ')}");
+          print("Rol principal: ${authService.userRole}");
 
-          if (!mounted) return;
-
-          if (role == 'caregiver') {
+          // Navegación basada en roles
+          if (authService.hasRole('CARETAKER')) {
+            print("Navegando a pantalla de cuidador");
             Navigator.pushReplacementNamed(context, '/home_caregiver');
-          } else if (role == 'pet_owner') {
-            Navigator.pushReplacementNamed(context, '/home');
+          } else if (authService.hasRole('ADMIN')) {
+            print("Navegando a pantalla de administrador");
+            Navigator.pushReplacementNamed(context, '/admin_dashboard');
           } else {
-            throw Exception('Rol desconocido: $role');
+            // Para OWNER o desconocido, redirigimos a home
+            print("Navegando a pantalla de propietario");
+            Navigator.pushReplacementNamed(context, '/home');
           }
         } else {
-          throw Exception('Credenciales incorrectas');
+          print("Login fallido");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Credenciales incorrectas'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       } catch (e) {
+        print("Error en _signInWithEmailAndPassword: $e"); // Para depuración
+
+        if (!mounted) return;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al iniciar sesión: ${e.toString()}'),
@@ -88,13 +107,29 @@ class _InicioScreenState extends State<InicioScreen> {
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser != null) {
-        // impl lógica de autenticación con Google
+        // Aquí deberías implementar la lógica para autenticarse con Google
+        // Por ejemplo, obtener el token de ID y enviarlo al backend
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final String? idToken = googleAuth.idToken;
 
+        // Aquí deberías implementar la lógica para enviar el token al backend
+        // y autenticar al usuario. Por ahora, solo mostraremos un mensaje
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Implementar autenticación con Google'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+
+        // Para pruebas, podemos redirigir al usuario a la pantalla principal
+        // Esto deberías reemplazarlo con la lógica real de autenticación
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/home');
         }
       }
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al iniciar sesión con Google: ${e.toString()}'),
@@ -116,6 +151,55 @@ class _InicioScreenState extends State<InicioScreen> {
       _isPhoneMode = !_isPhoneMode;
       _emailController.clear();
     });
+  }
+
+  // Método para mostrar diálogo de recuperación de contraseña
+  void _showForgotPasswordDialog() {
+    final TextEditingController emailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Recuperar contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Ingresa tu correo electrónico para recibir un enlace de recuperación.'),
+            SizedBox(height: 16),
+            TextFormField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                hintText: 'ejemplo@correo.com',
+                prefixIcon: Icon(Icons.email_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Aquí implementar la lógica para enviar el correo de recuperación
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Correo de recuperación enviado'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: Text('Enviar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -245,7 +329,7 @@ class _InicioScreenState extends State<InicioScreen> {
                               decoration: InputDecoration(
                                 hintText: '999 999 999',
                                 hintStyle: TextStyle(
-                                  color: Colors.grey.shade400
+                                    color: Colors.grey.shade400
                                 ),
                                 prefixIcon: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -397,7 +481,7 @@ class _InicioScreenState extends State<InicioScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: GestureDetector(
-                              onTap: (){},//_showForgotPasswordDialog,
+                              onTap: _showForgotPasswordDialog,
                               child: Text(
                                 '¿Olvidaste tu contraseña?',
                                 style: TextStyle(
@@ -444,7 +528,21 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
+
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/email_code_validation');
+                      },
+                      child: Text(
+                        'Validar código por correo',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
 
                     // Separador
                     Row(
@@ -532,8 +630,7 @@ class _InicioScreenState extends State<InicioScreen> {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          //width: double.infinity,
-          width: 60,
+          width: double.infinity,
           height: 50,
           padding: EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
@@ -547,7 +644,15 @@ class _InicioScreenState extends State<InicioScreen> {
                 color: Colors.red,
                 size: 20,
               ),
-
+              const SizedBox(width: 12),
+              Text(
+                'Continuar con Google',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
             ],
           ),
         ),

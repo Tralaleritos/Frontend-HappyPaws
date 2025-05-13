@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/auth/email_code_validation.dart';
 import 'package:happyp/screens/views_caregiver/caregiver_profile_form_screen.dart';
 import 'package:happyp/screens/views_caregiver/home_caregiver.dart';
 import 'package:happyp/screens/views_pet_owners/home_pet_owner.dart';
@@ -9,7 +10,6 @@ import 'package:happyp/views_pet_owner/message/messages_screen.dart';
 import 'package:happyp/views_pet_owner/notificactions/notification_screen.dart';
 import 'package:happyp/views_pet_owner/profile/profile_screen.dart';
 import 'package:happyp/screens/views_pet_owners/search_screen.dart';
-
 import '../themes/colors/AppColors.dart';
 import '../themes/typography/AppTypography.dart';
 
@@ -67,6 +67,7 @@ class HappyPawsApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/home_caregiver': (_) => CaregiverProfileFormScreen(),
         '/home_pet_owner': (_) => HomeScreen(),
+        '/email_code_validation': (_) => EmailCodeValidation(),
       },
     );
   }

@@ -6,7 +6,6 @@ import 'services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final authService = AuthService();
-  await authService.init();
   await authService.addDefaultUsers(); // Opcional para crear usuarios demo
 
   runApp(

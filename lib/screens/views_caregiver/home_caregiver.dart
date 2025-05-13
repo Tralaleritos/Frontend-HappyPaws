@@ -24,7 +24,7 @@ class HomeCaregiver extends StatelessWidget {
       ),
       body: Center(
         child: Text(
-          'Bienvenido Cuidador\n${user?.name ?? ''}',
+          'Bienvenido Cuidador\n${user?.username ?? ''}',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 24),
         ),

@@ -1,84 +1,83 @@
-abstract class User {
+class User {
+  final String username;
   final String email;
   final String password;
-  final String name;
+  final String phoneNumber;
+  final List<Role> roles;
 
   User({
+    required this.username,
     required this.email,
     required this.password,
-    required this.name,
+    required this.phoneNumber,
+    required this.roles,
   });
 
-  String get role;
+  // Getter que devuelve el rol principal como string
+  String get role {
+    if (roles.isEmpty) return 'OWNER'; // Valor por defecto
+    return roles.first.name.toUpperCase();
+  }
 
-  Map<String, dynamic> toJson();
+  // Método para verificar si el usuario tiene un rol específico
+  bool hasRole(String roleName) {
+    return roles.any((role) => role.name.toUpperCase() == roleName.toUpperCase());
+  }
 
-  static User fromJson(Map<String, dynamic> json) {
-    switch (json['role']) {
-      case 'caregiver':
-        return Caregiver.fromJson(json);
-      case 'pet_owner':
-        return PetOwner.fromJson(json);
-      default:
-        throw Exception('Rol desconocido: ${json['role']}');
+  Map<String, dynamic> toJson() {
+    return {
+      'username': username,
+      'email': email,
+      'password': password,
+      'phone_number': phoneNumber,
+      'roles': roles.map((role) => role.toJson()).toList(),
+    };
+  }
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    // Extraer los roles desde el JSON
+    List<Role> extractedRoles = [];
+
+    if (json['roles'] != null) {
+      // Si roles es una lista de objetos
+      if (json['roles'] is List) {
+        extractedRoles = (json['roles'] as List)
+            .map((roleJson) => Role.fromJson(roleJson))
+            .toList();
+      }
     }
-  }
-}
 
-class Caregiver extends User {
-  Caregiver({
-    required String email,
-    required String password,
-    required String name,
-  }) : super(email: email, password: password, name: name);
-
-  @override
-  String get role => 'caregiver';
-
-  @override
-  Map<String, dynamic> toJson() {
-    return {
-      'email': email,
-      'password': password,
-      'name': name,
-      'role': role,
-    };
-  }
-
-  factory Caregiver.fromJson(Map<String, dynamic> json) {
-    return Caregiver(
-      email: json['email'],
-      password: json['password'],
-      name: json['name'],
+    return User(
+      username: json['username'] ?? '',
+      email: json['email'] ?? '',
+      password: json['password'] ?? '',
+      phoneNumber: json['phone_number'] ?? json['phoneNumber'] ?? '',
+      roles: extractedRoles,
     );
   }
 }
 
-class PetOwner extends User {
-  PetOwner({
-    required String email,
-    required String password,
-    required String name,
-  }) : super(email: email, password: password, name: name);
+// Clase que representa un rol en el sistema
+class Role {
+  final int id;
+  final String name;
 
-  @override
-  String get role => 'pet_owner';
+  Role({required this.id, required this.name});
 
-  @override
+  factory Role.fromJson(Map<String, dynamic> json) {
+    return Role(
+      id: json['id'] ?? 0,
+      name: json['name'] ?? '',
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
-      'email': email,
-      'password': password,
+      'id': id,
       'name': name,
-      'role': role,
     };
   }
 
-  factory PetOwner.fromJson(Map<String, dynamic> json) {
-    return PetOwner(
-      email: json['email'],
-      password: json['password'],
-      name: json['name'],
-    );
-  }
+  @override
+  String toString() => 'Role(id: $id, name: $name)';
 }

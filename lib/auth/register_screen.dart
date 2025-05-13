@@ -36,12 +36,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
-      final name = "${_nameController.text.trim()} ${_surnameController.text.trim()}";
+      final name = _nameController.text.trim();
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
       final authService = Provider.of<AuthService>(context, listen: false);
-      final registered = await authService.register(name, email, password, _selectedRole!);
+
+      // Mostramos un loading mientras hacemos la solicitud
+      showDialog(
+        context: context,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final phone = _phoneController.text.trim();
+      final registered = await authService.register(name, email, password, phone, _selectedRole!);
+
+      Navigator.pop(context); // Cierra el loading
 
       if (registered) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -50,7 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.pushReplacementNamed(context, '/inicio');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este correo ya está en uso')),
+          const SnackBar(content: Text('Este correo ya está en uso o hubo un error')),
         );
       }
     }
@@ -141,8 +151,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 DropdownButtonFormField<String>(
                   decoration: _inputDecoration('Tipo de cuenta', Icons.person),
                   items: const [
-                    DropdownMenuItem(value: 'pet_owner', child: Text('Dueño de mascota')),
-                    DropdownMenuItem(value: 'caregiver', child: Text('Cuidador')),
+                    DropdownMenuItem(value: 'OWNER', child: Text('Dueño de mascota')),
+                    DropdownMenuItem(value: 'CARETAKER', child: Text('Cuidador')),
+                    DropdownMenuItem(value: 'ADMIN', child: Text('Administrador')),
                   ],
                   value: _selectedRole,
                   onChanged: (value) => setState(() => _selectedRole = value),
@@ -224,4 +235,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
 
