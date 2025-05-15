@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "972820589394",
+    "project_id": "happypaws-f50a3",
+    "storage_bucket": "happypaws-f50a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:972820589394:android:043b3df8eeda1154c2688b",
+        "android_client_info": {
+          "package_name": "com.happyp.happyp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUijMuiJUTg1dLOODM55W0WSTQxkR_XuA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
