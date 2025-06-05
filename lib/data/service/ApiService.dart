@@ -1,7 +1,7 @@
 
 import 'dart:convert';
+import 'package:happyp/data/models/nueva/pet.dart';
 import 'package:http/http.dart' as http;
-import '../models/pet.dart';
 import '../models/vet.dart';
 
 

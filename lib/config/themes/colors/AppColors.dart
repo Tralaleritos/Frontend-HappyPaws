@@ -16,15 +16,13 @@ class AppColors {
   static const Color surface = Colors.white;
 
   // Esquema de colores completo
-  static final ColorScheme colorScheme = ColorScheme.light(
+  static const ColorScheme colorScheme = ColorScheme.light(
     primary: primary,
     secondary: secondary,
     tertiary: tertiary,
-    background: background,
     surface: surface,
     onPrimary: Colors.white,
     onSecondary: Colors.white,
-    onBackground: textDark,
     onSurface: textDark,
   );
 

@@ -1,163 +1,286 @@
-/*import 'dart:convert';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:happyp/data/service/user_service.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user.dart';
 
-import '../../core/constants/ApiConstants.dart';
-import '../models/nueva/user_model.dart';
+class AuthService with ChangeNotifier {
+  User? _currentUser;
 
-class AuthService {
-  static const String _baseUrl = ApiConstants.BASE_URL;
+  User? get currentUser => _currentUser;
 
-  // Método para registrar un nuevo usuario
-  Future<ApiResponse<String>> register(User user) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/register'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(user.toJson()),
-      );
+  // URL de tu backend
+  final String _baseUrl = 'http://10.0.2.2:5000/api/v1/auth';
 
-      final responseData = jsonDecode(response.body);
+  // Función para registrar un nuevo usuario
+  Future<bool> register(String name, String email, String password, String phone, String role) async {
+    final url = Uri.parse('$_baseUrl/signup');
 
-      return ApiResponse(
-        success: response.statusCode == 200 || response.statusCode == 201,
-        message: responseData['message'] ?? 'Error en el registro',
-        data: responseData['data'] != null ? responseData['data']['email'] : null,
-      );
-    } catch (e) {
-      debugPrint('Error en el registro: $e');
-      return ApiResponse(
-        success: false,
-        message: 'Error de conexión. Verifica tu internet e intenta nuevamente.',
-      );
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'username': name,
+        'email': email,
+        'password': password,
+        'phoneNumber': phone,
+        'role': role.toUpperCase(),
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+
+      // Si el registro devuelve un token similar al login
+      if (responseData['token'] != null) {
+        await _saveToken(responseData['token']);
+        _extractUserFromToken(responseData['token']);
+        return true;
+      } else if (responseData['user'] != null) {
+        // Si el registro devuelve un objeto de usuario directamente
+        _currentUser = User.fromJson(responseData['user']);
+        return true;
+      }
     }
+    return false;
   }
 
-  // Método para verificar el código enviado por email
-  Future<ApiResponse<bool>> verifyEmailCode(String email, String code) async {
+  Future<bool> login(String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/auth/verify-code'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-          'code': code,
-        }),
-      );
-
-      final responseData = jsonDecode(response.body);
-
-      return ApiResponse(
-        success: response.statusCode == 200,
-        message: responseData['message'] ?? 'Error al verificar el código',
-        data: response.statusCode == 200,
-      );
-    } catch (e) {
-      debugPrint('Error al verificar el código: $e');
-      return ApiResponse(
-        success: false,
-        message: 'Error de conexión. Verifica tu internet e intenta nuevamente.',
-      );
-    }
-  }
-
-  // Método para solicitar un nuevo código de verificación
-  Future<ApiResponse<bool>> resendVerificationCode(String email) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/resend-code'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-        }),
-      );
-
-      final responseData = jsonDecode(response.body);
-
-      return ApiResponse(
-        success: response.statusCode == 200,
-        message: responseData['message'] ?? 'Error al reenviar el código',
-        data: response.statusCode == 200,
-      );
-    } catch (e) {
-      debugPrint('Error al reenviar el código: $e');
-      return ApiResponse(
-        success: false,
-        message: 'Error de conexión. Verifica tu internet e intenta nuevamente.',
-      );
-    }
-  }
-
-  // Método para actualizar la contraseña (cuando se olvidó)
-  Future<ApiResponse<bool>> updatePassword(String email, String newPassword) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/update-password'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-          'password': newPassword,
-        }),
-      );
-
-      final responseData = jsonDecode(response.body);
-
-      return ApiResponse(
-        success: response.statusCode == 200,
-        message: responseData['message'] ?? 'Error al actualizar la contraseña',
-        data: response.statusCode == 200,
-      );
-    } catch (e) {
-      debugPrint('Error al actualizar la contraseña: $e');
-      return ApiResponse(
-        success: false,
-        message: 'Error de conexión. Verifica tu internet e intenta nuevamente.',
-      );
-    }
-  }
-
-  // Método para iniciar sesión
-  Future<ApiResponse<User>> login(String email, String password) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        Uri.parse('$_baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
           'password': password,
         }),
       );
 
-      final responseData = jsonDecode(response.body);
+      // Para depuración
+      print('Respuesta API: ${response.statusCode}');
+      print('Cuerpo de respuesta: ${response.body}');
 
-      if (response.statusCode == 200 && responseData['data'] != null) {
-        return ApiResponse(
-          success: true,
-          message: responseData['message'] ?? 'Inicio de sesión exitoso',
-          data: User.fromJson(responseData['data']),
-        );
-      } else {
-        return ApiResponse(
-          success: false,
-          message: responseData['message'] ?? 'Credenciales incorrectas',
-        );
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        // Para depuración
+        print('JSON decodificado:');
+        final encoder = JsonEncoder.withIndent('  ');
+        print(encoder.convert(responseData));
+
+        // Verificar si hay un token en la respuesta
+        if (responseData['token'] != null) {
+          final String token = responseData['token'];
+
+          // Guardar el token en SharedPreferences
+          await _saveToken(token);
+
+          // Extraer datos del usuario del token JWT
+          bool success = _extractUserFromToken(token);
+
+          if (success) {
+            notifyListeners();
+            return true;
+          }
+        }
       }
+
+      return false;
     } catch (e) {
-      debugPrint('Error en el inicio de sesión: $e');
-      return ApiResponse(
-        success: false,
-        message: 'Error de conexión. Verifica tu internet e intenta nuevamente.',
-      );
+      print('Error en login: $e');
+      return false;
     }
   }
-}*/
+
+  // Método para guardar el token en SharedPreferences
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    print('Token guardado en SharedPreferences');
+  }
+
+  // Método para extraer información del usuario del token JWT
+  bool _extractUserFromToken(String token) {
+    try {
+      // El token JWT tiene tres partes separadas por puntos
+      final parts = token.split('.');
+      if (parts.length != 3) {
+        print('Formato de token inválido');
+        return false;
+      }
+
+      // Decodificar la parte del payload (segunda parte)
+      String payload = parts[1];
+
+      // Ajustar la longitud para que sea múltiplo de 4
+      while (payload.length % 4 != 0) {
+        payload += '=';
+      }
+
+      // Decodificar el payload de base64
+      final normalized = base64Url.normalize(payload);
+      final decodedPayload = utf8.decode(base64Url.decode(normalized));
+      final payloadMap = json.decode(decodedPayload);
+
+      print('Payload decodificado: $payloadMap');
+
+      // Extraer información del usuario del payload
+      final String email = payloadMap['sub'] ?? '';
+      List<String> roleNames = [];
+
+      // Extraer roles del token
+      if (payloadMap['ROLES'] != null && payloadMap['ROLES'] is List) {
+        roleNames = List<String>.from(payloadMap['ROLES']);
+      }
+
+      // Crear lista de roles a partir de los nombres
+      List<Role> roles = roleNames.asMap().entries.map((entry) {
+        return Role(id: entry.key + 1, name: entry.value);
+      }).toList();
+
+      // Crear usuario con la información extraída
+      _currentUser = User(
+        id: '',
+        username: email.split('@').first, // Usar la parte del email antes de @ como username
+        email: email,
+        password: '', // No guardamos la contraseña
+        phoneNumber: '', // No hay número de teléfono en el token
+        roles: roles,
+      );
+
+      print('Usuario extraído del token:');
+      print('- Email: ${_currentUser?.email}');
+      print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
+      print('- Id: ${_currentUser?.id}');
+
+      return true;
+    } catch (e) {
+      print('Error al decodificar el token: $e');
+      return false;
+    }
+  }
+  Future<bool> verifyCode(String email, String code) async {
+    final url = Uri.parse('$_baseUrl/verify');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'verificationCode': code,
+        }),
+      );
+
+      print('Verificación: ${response.statusCode} - ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error al verificar código: $e');
+      return false;
+    }
+  }
+  Future<bool> resendCode(String email) async {
+    final url = Uri.parse('$_baseUrl/resend?email=$email');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('Reenvío: ${response.statusCode} - ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error al reenviar código: $e');
+      return false;
+    }
+  }
+
+
+
+  // Método para verificar si el usuario tiene un rol específico
+  bool hasRole(String roleName) {
+    if (_currentUser == null) return false;
+    return _currentUser!.hasRole(roleName);
+  }
+
+  // Obtener el rol principal como string
+  String? get userRole {
+    return _currentUser?.role;
+  }
+
+  // Función para cerrar sesión
+  Future<void> logout() async {
+    // Elimina el token de SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    prefs.remove('token');
+
+    _currentUser = null;
+    notifyListeners();
+  }
+
+  // Función para obtener el token desde SharedPreferences
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  // Función para hacer solicitudes autenticadas
+  Future<http.Response> makeAuthenticatedRequest(String endpoint) async {
+    String? token = await getToken();
+
+    if (token == null) {
+      throw Exception("Token no encontrado. El usuario no está autenticado.");
+    }
+
+    final url = Uri.parse('$_baseUrl/$endpoint');
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    return response;
+  }
+
+  // Actualizar el ID del usuario usando UserService
+  Future<void> fetchAndSetUserId(UserService userService) async {
+    try {
+      final token = await getToken();
+      if (token == null) return;
+
+      userService.setAuthToken(token);
+      final userWithId = await userService.getUser();
+
+      if (_currentUser != null && userWithId != null) {
+        _currentUser = _currentUser!.copyWith(id: userWithId.id);
+        notifyListeners(); // Notificar cambio
+        print('ID del usuario actualizado: ${_currentUser?.id}');
+        print('Usuario extraído del token:');
+        print('- Email: ${_currentUser?.email}');
+        print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
+        print('- Id: ${_currentUser?.id}');
+
+      }
+    } catch (e) {
+      print('Error al actualizar el ID del usuario: $e');
+    }
+  }
+
+  // Función para verificar si hay un token guardado y cargar los datos del usuario
+  Future<bool> autoLogin() async {
+    final token = await getToken();
+    if (token != null) {
+      return _extractUserFromToken(token);
+    }
+    return false;
+  }
+
+}

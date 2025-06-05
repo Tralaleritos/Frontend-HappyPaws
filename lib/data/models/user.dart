@@ -1,4 +1,5 @@
 class User {
+  final String id; // Añadido campo para ID
   final String username;
   final String email;
   final String password;
@@ -6,12 +7,31 @@ class User {
   final List<Role> roles;
 
   User({
+    required this.id, // Ahora es requerido
     required this.username,
     required this.email,
     required this.password,
     required this.phoneNumber,
     required this.roles,
   });
+
+  User copyWith({
+    String? id,
+    String? username,
+    String? email,
+    String? password,
+    String? phoneNumber,
+    List<Role>? roles,
+  }) {
+    return User(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      password: password ?? this.password,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      roles: roles ?? this.roles,
+    );
+  }
 
   // Getter que devuelve el rol principal como string
   String get role {
@@ -38,14 +58,17 @@ class User {
     // Extraer los roles desde el JSON
     List<Role> extractedRoles = [];
 
-    if (json['roles'] != null && json['roles'] is List) {
-      extractedRoles = (json['roles'] as List)
-          .where((e) => e is Map<String, dynamic>)
-          .map((roleJson) => Role.fromJson(roleJson as Map<String, dynamic>))
-          .toList();
+    if (json['roles'] != null) {
+      // Si roles es una lista de objetos
+      if (json['roles'] is List) {
+        extractedRoles = (json['roles'] as List)
+            .map((roleJson) => Role.fromJson(roleJson))
+            .toList();
+      }
     }
 
     return User(
+      id: json['id'].toString(), // 👈 Aquí forzamos a String
       username: json['username'] ?? '',
       email: json['email'] ?? '',
       password: json['password'] ?? '',

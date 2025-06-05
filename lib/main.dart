@@ -1,20 +1,23 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:happyp/data/service/user_service.dart';
 import 'package:provider/provider.dart';
-import 'config/routes/happyPawsApp.dart';
-import 'data/models/nueva/user_model.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-void main() {
+import 'config/routes/happyPawsApp.dart';
+import 'data/service/auth_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final authService = AuthService();
+
+  await initializeDateFormatting('es', null);
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => PetProvider()),
+        ChangeNotifierProvider<AuthService>.value(value: authService),
       ],
       child: const HappyPawsApp(),
     ),
   );
 }
-
-
