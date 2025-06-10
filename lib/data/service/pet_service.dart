@@ -5,7 +5,7 @@ import '../models/pet.dart';
 import '../models/create_pet_request.dart';
 
 class PetService {
-  final String _baseUrl = 'http://10.0.2.2:5000/api/v1/auth';
+  final String _baseUrl = 'http://10.0.2.2:5000/api/v1';
   String? _token;
 
 
