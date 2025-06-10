@@ -135,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 // Esperar un poco para simular una animación suave
                 await Future.delayed(const Duration(seconds: 1));
-
+                final authProvider = Provider.of<AuthService>(context, listen: false);
                 // Cerrar sesión
                 await authProvider.logout();
 
