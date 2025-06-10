@@ -1,16 +1,7 @@
-// Pantalla principal de notificaciones con autenticación
-import 'dart:convert';
-
-import 'package:flutter/cupertino.dart';
+// notification_screen.dart - Versión actualizada que usa el servicio global
 import 'package:flutter/material.dart';
-import 'package:happyp/data/service/auth_service.dart';
-import 'package:happyp/data/service/user_service.dart';
-import 'package:provider/provider.dart';
 import 'package:happyp/data/models/notification.dart';
-import 'package:stomp_dart_client/stomp.dart';
-import 'package:stomp_dart_client/stomp_config.dart';
-import 'package:stomp_dart_client/stomp_frame.dart';
-
+import 'package:happyp/data/service/notification_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final int caregiverId;
@@ -27,183 +18,27 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  StompClient? stompClient;
-  List<OfferResponse> notifications = [];
-  bool isConnected = false;
-  String connectionStatus = 'Desconectado';
-  String? authToken;
-  String? userId;
-  List<String> debugLogs = [];
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
     super.initState();
-    _addDebugLog('Inicializando NotificationsScreen para caregiver: ${widget.caregiverId}');
-    _initializeAuth();
+    // Marcar como leídas al entrar a la pantalla
+    _notificationService.markAsRead();
+    // Escuchar cambios en el servicio
+    _notificationService.addListener(_onNotificationServiceChanged);
   }
 
-  void _addDebugLog(String message) {
-    final timestamp = DateTime.now().toIso8601String();
-    setState(() {
-      debugLogs.insert(0, '[$timestamp] $message');
-      if (debugLogs.length > 20) {
-        debugLogs.removeLast();
-      }
-    });
-    print(message);
+  @override
+  void dispose() {
+    _notificationService.removeListener(_onNotificationServiceChanged);
+    super.dispose();
   }
 
-  void _initializeAuth() async {
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-
-      // Obtener el token y el ID del usuario
-      authToken = await authService.getToken();
-      userId = authService.currentUser?.id.toString();
-
-      _addDebugLog('Token obtenido: ${authToken != null ? "Sí" : "No"}');
-      _addDebugLog('User ID: $userId');
-
-      if (authToken != null && userId != null) {
-        _connectToWebSocket();
-      } else {
-        setState(() {
-          connectionStatus = 'Sin autenticación';
-        });
-        _addDebugLog('Error: Faltan credenciales de autenticación');
-      }
-    } catch (e) {
-      setState(() {
-        connectionStatus = 'Error de autenticación';
-      });
-      _addDebugLog('Error al obtener autenticación: $e');
+  void _onNotificationServiceChanged() {
+    if (mounted) {
+      setState(() {});
     }
-  }
-
-  void _connectToWebSocket() {
-    if (authToken == null) {
-      setState(() {
-        connectionStatus = 'Token no disponible';
-      });
-      return;
-    }
-
-    final wsUrl = '${widget.serverUrl}/happy';
-    _addDebugLog('Conectando a WebSocket: $wsUrl');
-
-    stompClient = StompClient(
-      config: StompConfig.SockJS(
-        url: wsUrl,
-        onConnect: _onConnect,
-        beforeConnect: () async {
-          setState(() {
-            connectionStatus = 'Conectando...';
-          });
-          _addDebugLog('Iniciando conexión WebSocket...');
-        },
-        onWebSocketError: (dynamic error) {
-          if (!mounted) return;
-          setState(() {
-            connectionStatus = 'Error de WebSocket';
-            isConnected = false;
-          });
-          _addDebugLog('Error de WebSocket: $error');
-        },
-        onStompError: (StompFrame frame) {
-          if (!mounted) return;
-          setState(() {
-            connectionStatus = 'Error STOMP';
-            isConnected = false;
-          });
-          _addDebugLog('Error STOMP: ${frame.body}');
-        },
-        onDisconnect: (StompFrame frame) {
-          if (!mounted) return;
-          setState(() {
-            connectionStatus = 'Desconectado';
-            isConnected = false;
-          });
-          _addDebugLog('Desconectado del WebSocket');
-        },
-        // Headers de autenticación
-        webSocketConnectHeaders: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        stompConnectHeaders: {
-          'Authorization': 'Bearer $authToken',
-          'login': userId ?? '',
-          'passcode': authToken ?? '',
-        },
-      ),
-    );
-
-    stompClient!.activate();
-  }
-
-  void _onConnect(StompFrame frame) {
-    setState(() {
-      isConnected = true;
-      connectionStatus = 'Conectado';
-    });
-
-    final topic = '/topic/offers/${widget.caregiverId}';
-    _addDebugLog('Conectado al WebSocket, suscribiéndose a: $topic');
-
-    // Suscribirse al tópico de ofertas para este caregiver
-    stompClient!.subscribe(
-      destination: topic,
-      headers: {
-        'Authorization': 'Bearer $authToken',
-        'id': 'sub-${widget.caregiverId}',
-      },
-      callback: _onOfferReceived,
-    );
-
-    _addDebugLog('Suscripción completada exitosamente');
-  }
-
-  void _onOfferReceived(StompFrame frame) {
-    _addDebugLog('¡Mensaje recibido del WebSocket!');
-    _addDebugLog('Contenido del frame: ${frame.body}');
-
-    if (frame.body != null) {
-      try {
-        final Map<String, dynamic> data = json.decode(frame.body!);
-        _addDebugLog('Datos JSON parseados: $data');
-
-        final OfferResponse offer = OfferResponse.fromJson(data);
-        _addDebugLog('OfferResponse creada: ID=${offer.id}, Descripción=${offer.description}');
-
-        setState(() {
-          notifications.insert(0, offer);
-        });
-
-        _showNotificationSnackBar(offer);
-        _addDebugLog('Notificación añadida a la lista');
-      } catch (e) {
-        _addDebugLog('ERROR al procesar la notificación: $e');
-        _addDebugLog('Datos del frame: ${frame.body}');
-      }
-    } else {
-      _addDebugLog('ERROR: Frame recibido sin contenido');
-    }
-  }
-
-  void _showNotificationSnackBar(OfferResponse offer) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Nueva oferta: ${offer.description}'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'Ver',
-          textColor: Colors.white,
-          onPressed: () {
-            _showOfferDetails(offer);
-          },
-        ),
-      ),
-    );
   }
 
   void _showOfferDetails(OfferResponse offer) {
@@ -257,25 +92,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _acceptOffer(OfferResponse offer) {
-    if (stompClient != null && isConnected && authToken != null) {
-      final acceptMessage = {
-        'caregiverId': widget.caregiverId,
-        'offerId': offer.id,
-        'action': 'accept',
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-
-      stompClient!.send(
-        destination: '/app/accept-offer',
-        body: json.encode(acceptMessage),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      _addDebugLog('Mensaje de aceptación enviado para oferta ${offer.id}');
-    }
+    _notificationService.acceptOffer(offer);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -285,31 +102,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _clearNotifications() {
-    setState(() {
-      notifications.clear();
-    });
-  }
-
-  void _clearDebugLogs() {
-    setState(() {
-      debugLogs.clear();
-    });
-  }
-
-  void _reconnectWithAuth() {
-    _addDebugLog('Reconectando...');
-    _initializeAuth();
-  }
-
-  @override
-  void dispose() {
-    stompClient?.deactivate();
-    super.dispose();
+  void _showDebugDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Estado de Conexión'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Estado: ${_notificationService.connectionStatus}'),
+                const SizedBox(height: 8),
+                Text('Conectado: ${_notificationService.isConnected ? "Sí" : "No"}'),
+                const SizedBox(height: 8),
+                Text('Total notificaciones: ${_notificationService.notifications.length}'),
+                const SizedBox(height: 8),
+                Text('No leídas: ${_notificationService.unreadCount}'),
+                const SizedBox(height: 16),
+                if (!_notificationService.isConnected)
+                  ElevatedButton(
+                    onPressed: () {
+                      _notificationService.reconnect();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Reconectar'),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final notifications = _notificationService.notifications;
+    final isConnected = _notificationService.isConnected;
+    final connectionStatus = _notificationService.connectionStatus;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notificaciones de Ofertas'),
@@ -318,13 +158,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.clear_all),
-            onPressed: notifications.isNotEmpty ? _clearNotifications : null,
+            onPressed: notifications.isNotEmpty
+                ? _notificationService.clearNotifications
+                : null,
             tooltip: 'Limpiar notificaciones',
           ),
           IconButton(
-            icon: const Icon(Icons.bug_report),
-            onPressed: () => _showDebugDialog(),
-            tooltip: 'Ver logs de debug',
+            icon: const Icon(Icons.info_outline),
+            onPressed: _showDebugDialog,
+            tooltip: 'Estado de conexión',
           ),
         ],
       ),
@@ -353,20 +195,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (authToken != null && userId != null)
-                        Text(
-                          'Usuario: $userId | Caregiver: ${widget.caregiverId}',
-                          style: TextStyle(
-                            color: isConnected ? Colors.green.shade600 : Colors.red.shade600,
-                            fontSize: 12,
-                          ),
+                      Text(
+                        'Caregiver: ${widget.caregiverId} | Total: ${notifications.length}',
+                        style: TextStyle(
+                          color: isConnected ? Colors.green.shade600 : Colors.red.shade600,
+                          fontSize: 12,
                         ),
+                      ),
                     ],
                   ),
                 ),
                 if (!isConnected)
                   TextButton(
-                    onPressed: _reconnectWithAuth,
+                    onPressed: _notificationService.reconnect,
                     child: const Text('Reconectar'),
                   ),
               ],
@@ -445,59 +286,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  void _showDebugDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Debug Logs'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 400,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Logs (${debugLogs.length})'),
-                    TextButton(
-                      onPressed: _clearDebugLogs,
-                      child: const Text('Limpiar'),
-                    ),
-                  ],
-                ),
-                const Divider(),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: debugLogs.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          debugLogs[index],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

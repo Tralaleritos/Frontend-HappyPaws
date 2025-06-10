@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/data/service/notification_service.dart';
 import 'package:happyp/screens/views_caregiver/notificactions/NotificationCaregiverScreen.dart';
 import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
 import 'package:happyp/data/models/pet.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
+// Importar el nuevo servicio de notificaciones
 
 class HomeCaregiverScreen extends StatefulWidget {
   const HomeCaregiverScreen({super.key});
@@ -18,16 +20,17 @@ class HomeCaregiverScreen extends StatefulWidget {
 class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
   List<Pet> _pets = [];
   bool _isLoading = true;
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
     super.initState();
     _loadPets();
+    _initializeNotificationService();
   }
 
   Future<void> _loadPets() async {
     try {
-
       final petService = Provider.of<PetService>(context, listen: false);
       final authService = Provider.of<AuthService>(context, listen: false);
       final userService = UserService();
@@ -49,6 +52,74 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
     }
   }
 
+  Future<void> _initializeNotificationService() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+      final user = authService.currentUser;
+
+      if (token != null && user != null) {
+        // Inicializar el servicio de notificaciones
+        _notificationService.initialize(
+          authToken: token,
+          userId: user.id.toString(),
+          caregiverId: 2, // Usar el ID del caregiver actual
+          serverUrl: 'http://10.0.2.2:5000/api/v1',
+        );
+
+        // Escuchar cambios en las notificaciones
+        _notificationService.addListener(_onNotificationChanged);
+      }
+    } catch (e) {
+      print('Error al inicializar servicio de notificaciones: $e');
+    }
+  }
+
+  void _onNotificationChanged() {
+    // Actualizar la UI cuando lleguen nuevas notificaciones
+    setState(() {});
+
+    // Mostrar SnackBar si hay nuevas notificaciones
+    if (_notificationService.unreadCount > 0) {
+      final latestNotification = _notificationService.notifications.first;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nueva oferta: ${latestNotification.description}'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'Ver',
+            textColor: Colors.white,
+            onPressed: () {
+              _navigateToNotifications();
+            },
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  void _navigateToNotifications() {
+    // Marcar como leídas antes de navegar
+    _notificationService.markAsRead();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotificationsScreen(
+          caregiverId: 2,
+          serverUrl: 'http://10.0.2.2:5000/api/v1',
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _notificationService.removeListener(_onNotificationChanged);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
@@ -59,20 +130,41 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
         title: const Text('Bienvenido Cuidador'),
         backgroundColor: AppColors.primary,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificationsScreen(
-                    caregiverId: 2, // ID del caregiver actual
-                    serverUrl: 'http://10.0.2.2:5000/api/v1', // URL de tu servidor
+          // Ícono de notificaciones con indicador
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: _navigateToNotifications,
+                tooltip: 'Notificaciones',
+              ),
+              // Indicador de notificaciones no leídas
+              if (_notificationService.unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '${_notificationService.unreadCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
-              );
-            },
-            tooltip: 'Notificaciones',
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -87,12 +179,56 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
-              '¡Hola, ${user?.username ?? 'cuidador'}!',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¡Hola, ${user?.username ?? 'cuidador'}!',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Estado de conexión de notificaciones
+                Row(
+                  children: [
+                    Icon(
+                      _notificationService.isConnected
+                          ? Icons.wifi
+                          : Icons.wifi_off,
+                      size: 16,
+                      color: _notificationService.isConnected
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _notificationService.connectionStatus,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _notificationService.isConnected
+                            ? Colors.green
+                            : Colors.red,
+                      ),
+                    ),
+                    if (!_notificationService.isConnected) ...[
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _notificationService.reconnect,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 28),
+                        ),
+                        child: const Text(
+                          'Reconectar',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
           const Padding(
