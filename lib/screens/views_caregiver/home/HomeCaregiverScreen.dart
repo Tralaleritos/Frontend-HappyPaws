@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/screens/views_caregiver/notificactions/NotificationCaregiverScreen.dart';
+import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
@@ -25,8 +27,9 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
 
   Future<void> _loadPets() async {
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
+
       final petService = Provider.of<PetService>(context, listen: false);
+      final authService = Provider.of<AuthService>(context, listen: false);
       final userService = UserService();
 
       await authService.fetchAndSetUserId(userService);
@@ -56,6 +59,21 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
         title: const Text('Bienvenido Cuidador'),
         backgroundColor: AppColors.primary,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsScreen(
+                    caregiverId: 2, // ID del caregiver actual
+                    serverUrl: 'http://10.0.2.2:5000/api/v1', // URL de tu servidor
+                  ),
+                ),
+              );
+            },
+            tooltip: 'Notificaciones',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => authService.logout(),
