@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/user.dart';
+import 'package:happyp/data/service/auth_service.dart';
+import 'package:happyp/data/service/pet_service.dart';
+import 'package:happyp/data/service/user_service.dart';
 import 'package:provider/provider.dart';
-import 'package:happyp/data/models/nueva/user_model.dart';
-import '../search/add_pet_screen.dart';
-import '../search/pet_detail_screen.dart';
-import 'EditProfileScreen.dart';
-
+import 'package:happyp/screens/views_pet_owner/add_pet/add_pet_screen.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -15,47 +16,96 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isInit = true;
   bool _isLoading = false;
+  bool _isLoadingPets = false;
+
+  // Servicios
+  final UserService _userService = UserService();
+  final PetService _petService = PetService();
+
+  // Estado local
+  User? _currentUser;
+  List<Pet> _userPets = [];
+
   // Define the service variable here
   String service = ''; // You can set a default value or leave it empty
 
   @override
   void didChangeDependencies() {
     if (_isInit) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Cargar las mascotas del usuario actual
-      final authProvider = Provider.of<AuthProvider>(context);
-      if (authProvider.currentUser != null) {
-        final petProvider = Provider.of<PetProvider>(context, listen: false);
-        petProvider.loadUserPets(authProvider.currentUser!.id!).then((_) {
-          setState(() {
-            _isLoading = false;
-          });
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      _initializeScreen();
       _isInit = false;
     }
     super.didChangeDependencies();
   }
 
+  Future<void> _initializeScreen() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthService>(context, listen: false);
+      final token = await authProvider.getToken();
+
+      if (token != null) {
+        // Configurar token en los servicios
+        _userService.setAuthToken(token);
+        _petService.setAuthToken(token);
+
+        // Cargar datos del usuario
+        await _loadUserData();
+
+        // Cargar mascotas del usuario
+        await _loadUserPets();
+      }
+    } catch (e) {
+      print('Error inicializando ProfileScreen: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final user = await _userService.getUser();
+      setState(() {
+        _currentUser = user;
+      });
+    } catch (e) {
+      print('Error cargando datos del usuario: $e');
+    }
+  }
+
+  Future<void> _loadUserPets() async {
+    setState(() {
+      _isLoadingPets = true;
+    });
+
+    try {
+      final pets = await _petService.getUserPets();
+      setState(() {
+        _userPets = pets;
+      });
+    } catch (e) {
+      print('Error cargando mascotas: $e');
+    } finally {
+      setState(() {
+        _isLoadingPets = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final petProvider = Provider.of<PetProvider>(context);
-    final user = authProvider.currentUser;
-    final pets = petProvider.pets;
+    final authProvider = Provider.of<AuthService>(context);
 
     // Iniciales para el avatar (si no hay foto)
     String initials = '';
-    if (user != null) {
-      if (user.names.isNotEmpty) initials += user.names[0];
-      if (user.lastname.isNotEmpty) initials += user.lastname[0];
+    if (_currentUser != null) {
+      if (_currentUser!.username.isNotEmpty) initials += _currentUser!.username[0];
+      if (_currentUser!.email.isNotEmpty) initials += _currentUser!.email[0];
     }
 
     return Scaffold(
@@ -87,12 +137,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await Future.delayed(const Duration(seconds: 1));
 
                 // Cerrar sesión
-                Provider.of<AuthProvider>(context, listen: false).logout();
+                await authProvider.logout();
 
                 // Cerrar el diálogo y navegar al login
                 if (context.mounted) {
                   Navigator.of(context).pop(); // Cierra el diálogo
-                  Navigator.of(context).pushReplacementNamed('/login-duenio'); // Asegúrate de registrar esta ruta
+                  Navigator.of(context).pushReplacementNamed('/login-duenio');
                 }
               }
             },
@@ -113,7 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : user == null
+          : _currentUser == null
           ? const Center(child: Text('No hay usuario logueado'))
           : SingleChildScrollView(
         child: Column(
@@ -124,13 +174,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Center(
                 child: Column(
                   children: [
-                    // Avatar con foto o iniciales
-                    user.photoUrl.isNotEmpty
-                        ? CircleAvatar(
-                      radius: 50,
-                      backgroundImage: NetworkImage(user.photoUrl),
-                    )
-                        : CircleAvatar(
+                    // Avatar con iniciales (ya que no tienes photoUrl en el nuevo User model)
+                    CircleAvatar(
                       radius: 50,
                       backgroundColor: Theme.of(context).colorScheme.secondary,
                       child: Text(
@@ -144,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      user.fullName,
+                      _currentUser!.username,
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 8),
@@ -158,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          user.email,
+                          _currentUser!.email,
                           style: const TextStyle(
                             color: Colors.grey,
                           ),
@@ -176,7 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          user.phone,
+                          _currentUser!.phoneNumber,
                           style: const TextStyle(
                             color: Colors.grey,
                           ),
@@ -186,13 +231,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (ctx) => EditProfileScreen(user: user),
-                          ),
-                        ).then((_) {
-                          // Actualizar perfil después de editar
-                          setState(() {});
+                        Future.value().then((_) {
+                          // Actualizar perfil después de "simular" la navegación
+                          _loadUserData();
                         });
                       },
                       child: const Text('Editar Perfil'),
@@ -218,13 +259,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (ctx) => AddPetsScreen(userId: user.id!, initialService: service),
+                              builder: (context) => AddPetScreen(ownerId: int.parse(_currentUser!.id)),
                             ),
                           ).then((_) {
                             // Recargar mascotas después de añadir
-                            if (user.id != null) {
-                              petProvider.loadUserPets(user.id!);
-                            }
+                            _loadUserPets();
                           });
                         },
                         icon: Icon(
@@ -241,9 +280,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  if (petProvider.isLoading)
+                  if (_isLoadingPets)
                     const Center(child: CircularProgressIndicator())
-                  else if (pets.isEmpty)
+                  else if (_userPets.isEmpty)
                     Center(
                       child: Column(
                         children: [
@@ -266,12 +305,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (ctx) => AddPetsScreen(userId: user.id!, initialService: service),
+                                    builder: (context) => AddPetScreen(ownerId: int.parse(_currentUser!.id))
                                 ),
                               ).then((_) {
-                                if (user.id != null) {
-                                  petProvider.loadUserPets(user.id!);
-                                }
+                                _loadUserPets();
                               });
                             },
                             child: const Text('Añadir una mascota ahora'),
@@ -284,30 +321,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       height: 120,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        itemCount: pets.length,
-                        itemBuilder: (ctx, i) => GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (ctx) => PetDetailsScreen(pet: pets[i]),
-                              ),
-                            ).then((_) {
-                              if (user.id != null) {
-                                petProvider.loadUserPets(user.id!);
-                              }
-                            });
-                          },
-                          child: _buildPetCard(
-                            context,
-                            pets[i].name,
-                            pets[i].type,
-                            pets[i].breed,
-                            pets[i].photoUrls.isNotEmpty ? pets[i].photoUrls[0] : null,
-                          ),
-                        ),
+                        itemCount: _userPets.length,
+                        itemBuilder: (ctx, i) {
+                          final pet = _userPets[i];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundColor: Colors.grey[200],
+                                  backgroundImage: pet.imgUrl.isNotEmpty
+                                      ? NetworkImage(pet.imgUrl)
+                                      : null,
+                                  child: pet.imgUrl.isEmpty
+                                      ? Icon(Icons.pets, size: 30, color: Colors.grey)
+                                      : null,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  pet.name,
+                                  style: const TextStyle(fontSize: 14),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 5),
                   // Próximas citas (mantenemos esta sección estática como pides)
                   Text(
                     'Próximas Citas',
@@ -335,7 +378,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
 
   Widget _buildPetCard(
       BuildContext context,

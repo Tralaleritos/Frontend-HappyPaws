@@ -2,8 +2,6 @@
 import 'dart:convert';
 import 'package:happyp/data/models/user.dart';
 import 'package:http/http.dart' as http;
-
-
 class UserService {
   final String _baseUrl = 'http://10.0.2.2:5000/api/v1';
   String? _token;
