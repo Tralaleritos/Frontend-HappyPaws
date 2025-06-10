@@ -13,6 +13,7 @@ class AuthService with ChangeNotifier {
   // URL de tu backend
   final String _baseUrl = 'http://10.0.2.2:5000/api/v1/auth';
 
+
   // Función para registrar un nuevo usuario
   Future<bool> register(String name, String email, String password, String phone, String role) async {
     final url = Uri.parse('$_baseUrl/signup');
