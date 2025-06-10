@@ -7,10 +7,7 @@ import 'package:happyp/data/models/nueva/pet.dart' as pet_model;
 import 'package:happyp/data/service/ApiService.dart' as service;
 import '../search/RecomendationPetDetail/PetDetailScreen.dart';
 import '../search/SearchResultsScreen.dart';
-
-
 import 'package:provider/provider.dart';
-
 import 'package:happyp/data/models/nueva/user_model.dart';
 
 class HomeCaregiverScreen extends StatefulWidget {

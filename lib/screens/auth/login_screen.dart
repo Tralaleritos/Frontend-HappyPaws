@@ -60,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // Navegación basada en roles
           if (authService.hasRole('CAREGIVER')) {
             print("Navegando a pantalla de cuidador");
-            Navigator.pushReplacementNamed(context, '/home_caregiver');
+            Navigator.pushReplacementNamed(context, '/home-caregiver');
           } else if (authService.hasRole('ADMIN')) {
             print("Navegando a pantalla de administrador");
             Navigator.pushReplacementNamed(context, '/admin_dashboard');
