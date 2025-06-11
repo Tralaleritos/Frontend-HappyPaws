@@ -16,37 +16,73 @@ class AuthService with ChangeNotifier {
 
   // Función para registrar un nuevo usuario
   Future<bool> register(String name, String email, String password, String phone, String role) async {
-    final url = Uri.parse('$_baseUrl/signup');
+    try {
+      final url = Uri.parse('$_baseUrl/signup');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
-        'username': name,
-        'email': email,
-        'password': password,
-        'phoneNumber': phone,
-        'role': role.toUpperCase(),
-      }),
-    );
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'username': name,
+          'email': email,
+          'password': password,
+          'phoneNumber': phone,
+          'role': role.toUpperCase(),
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      final responseData = json.decode(response.body);
+      // Para depuración - imprimir la respuesta
+      print('Respuesta registro: ${response.statusCode}');
+      print('Cuerpo de respuesta registro: ${response.body}');
 
-      // Si el registro devuelve un token similar al login
-      if (responseData['token'] != null) {
-        await _saveToken(responseData['token']);
-        _extractUserFromToken(responseData['token']);
-        return true;
-      } else if (responseData['user'] != null) {
-        // Si el registro devuelve un objeto de usuario directamente
-        _currentUser = User.fromJson(responseData['user']);
-        return true;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+
+        // Para depuración - imprimir el JSON decodificado
+        print('JSON decodificado registro:');
+        final encoder = JsonEncoder.withIndent('  ');
+        print(encoder.convert(responseData));
+
+        // Verificar diferentes tipos de respuesta exitosa
+        if (responseData['token'] != null) {
+          // Si el registro devuelve un token, guardar y extraer usuario
+          await _saveToken(responseData['token']);
+          _extractUserFromToken(responseData['token']);
+          return true;
+        } else if (responseData['user'] != null) {
+          // Si el registro devuelve un objeto de usuario directamente
+          _currentUser = User.fromJson(responseData['user']);
+          return true;
+        } else if (responseData['message'] != null || responseData['success'] == true) {
+          // Si el registro devuelve solo un mensaje de éxito
+          return true;
+        } else if (responseData.containsKey('id') || responseData.containsKey('email')) {
+          // Si la respuesta contiene datos del usuario directamente
+          return true;
+        } else {
+          // Cualquier respuesta 200/201 se considera exitosa
+          return true;
+        }
+      } else if (response.statusCode == 400) {
+        // Error de validación o usuario ya existe
+        final responseData = json.decode(response.body);
+        print('Error 400: ${responseData['message'] ?? 'Error de validación'}');
+        return false;
+      } else if (response.statusCode == 409) {
+        // Conflicto - usuario ya existe
+        print('Error 409: Usuario ya existe');
+        return false;
+      } else {
+        // Otros errores del servidor
+        print('Error del servidor: ${response.statusCode}');
+        return false;
       }
+    } catch (e) {
+      print('Error en registro: $e');
+      return false;
     }
-    return false;
   }
 
   Future<bool> login(String email, String password) async {
@@ -184,6 +220,7 @@ class AuthService with ChangeNotifier {
       return false;
     }
   }
+
   Future<bool> resendCode(String email) async {
     final url = Uri.parse('$_baseUrl/resend?email=$email');
 

@@ -8,6 +8,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/user_service.dart';
+import 'package:happyp/screens/auth/EmailCodeValidation.dart';
 import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -534,8 +535,54 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
 
                     TextButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/email_code_validation');
+                      onPressed: () async {
+                        // Verificar que se haya ingresado un email válido
+                        if (_emailController.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Por favor ingresa tu email'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Validar formato de email básico
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_emailController.text)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Por favor ingresa un email válido'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Navegar a la pantalla de validación de código
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmailCodeValidation(
+                              email: _emailController.text.trim(),
+                              onCodeValidated: () {
+                                // Al validar el código exitosamente, volver al login
+                                Navigator.of(context).pop(true);
+                                // Mostrar mensaje de éxito
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Email verificado correctamente'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        );
+
+                        // Si el resultado es true, significa que se verificó correctamente
+                        if (result == true) {
+                          print('Código de email verificado exitosamente');
+                        }
                       },
                       child: Text(
                         'Validar código por correo',

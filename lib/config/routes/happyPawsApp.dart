@@ -2,18 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/config/navigation/navigation_wrapper.dart';
 import 'package:happyp/data/service/auth_service.dart';
+import 'package:happyp/screens/auth/EmailCodeValidation.dart';
 import 'package:happyp/screens/auth/login_screen.dart';
 import 'package:happyp/screens/auth/register_screen.dart';
-import 'package:happyp/screens/views_pet_owner/auth/login/update_password/recovery_password.dart';
+import 'package:happyp/screens/auth/recovery_password.dart';
 import 'package:happyp/screens/views_pet_owner/home/home_screen.dart';
 import 'package:happyp/screens/views_pet_owner/message/messages_screen.dart';
 import 'package:happyp/screens/views_pet_owner/notificactions/notification_screen.dart';
 import 'package:happyp/screens/views_pet_owner/profile/profile_screen.dart';
 import 'package:happyp/screens/views_pet_owner/search/search_screen.dart';
-import 'package:happyp/screens/views_caregiver/auth/splash.dart';
+import 'package:happyp/screens/auth/splash.dart';
 import 'package:happyp/screens/views_caregiver/home/HomeCaregiverScreen.dart';
 import 'package:happyp/screens/views_caregiver/message/MesageCaregiverScreen.dart';
-import 'package:happyp/screens/views_caregiver/notificactions/NotificationCaregiverScreen.dart';
 import 'package:happyp/screens/views_caregiver/profile/ProfileCaregiverScreen.dart';
 import 'package:happyp/screens/views_caregiver/search/SearchCaregiverScreen.dart';
 import 'package:provider/provider.dart';
@@ -139,9 +139,6 @@ class HappyPawsApp extends StatelessWidget {
                 break;
               case '/messages-caregiver':
                 page = const MessageCaregiverScreen();
-                break;
-              case '/notifications-caregiver':
-                page = const NotificationCaregiverScreen();
                 break;
               case '/profile-caregiver':
                 page = const ProfileCaregiverScreen();

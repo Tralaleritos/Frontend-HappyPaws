@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/data/service/notification_service.dart';
-import 'package:happyp/screens/views_caregiver/notificactions/NotificationCaregiverScreen.dart';
 import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/data/service/auth_service.dart';
@@ -57,13 +56,14 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final token = await authService.getToken();
       final user = authService.currentUser;
+      final caregiverId = int.parse(authService.currentUser!.id);
 
       if (token != null && user != null) {
         // Inicializar el servicio de notificaciones
         _notificationService.initialize(
           authToken: token,
           userId: user.id.toString(),
-          caregiverId: 2, // Usar el ID del caregiver actual
+          caregiverId: caregiverId, // Usar el ID del caregiver actual
           serverUrl: 'http://10.0.2.2:5000/api/v1',
         );
 
@@ -166,9 +166,53 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
                 ),
             ],
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => authService.logout(),
+          // Cambiar el IconButton simple por un PopupMenuButton igual que en ProfileScreen
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.settings),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                // Mostrar un pequeño diálogo de "Cerrando sesión..."
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (BuildContext context) {
+                    return const AlertDialog(
+                      content: Row(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(width: 16),
+                          Text("Cerrando sesión..."),
+                        ],
+                      ),
+                    );
+                  },
+                );
+
+                // Esperar un poco para simular una animación suave
+                await Future.delayed(const Duration(seconds: 1));
+                final authProvider = Provider.of<AuthService>(context, listen: false);
+                // Cerrar sesión
+                await authProvider.logout();
+
+                // Cerrar el diálogo y navegar al login
+                if (context.mounted) {
+                  Navigator.of(context).pop(); // Cierra el diálogo
+                  Navigator.of(context).pushReplacementNamed('/login');
+                }
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Cerrar sesión'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/data/service/auth_service.dart';
+import 'package:happyp/screens/auth/EmailCodeValidation.dart';
 import 'package:provider/provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -39,28 +40,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final name = _nameController.text.trim();
       final email = _emailController.text.trim();
       final password = _passwordController.text;
+      final phone = _phoneController.text.trim();
 
       final authService = Provider.of<AuthService>(context, listen: false);
 
       // Mostramos un loading mientras hacemos la solicitud
       showDialog(
         context: context,
+        barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
-      final phone = _phoneController.text.trim();
-      final registered = await authService.register(name, email, password, phone, _selectedRole!);
+      try {
+        final registered = await authService.register(name, email, password, phone, _selectedRole!);
 
-      Navigator.pop(context); // Cierra el loading
+        Navigator.pop(context); // Cierra el loading
 
-      if (registered) {
+        if (registered) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registro exitoso'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navegar a la pantalla de verificación de código por email
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmailCodeValidation(
+                email: email,
+                onCodeValidated: () {
+                  // Después de validar el código, ir al login
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error en el registro. Verifica tus datos e intenta nuevamente.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        Navigator.pop(context); // Cierra el loading
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registro exitoso')),
-        );
-        Navigator.pushReplacementNamed(context, '/inicio');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este correo ya está en uso o hubo un error')),
+          SnackBar(
+            content: Text('Error de conexión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

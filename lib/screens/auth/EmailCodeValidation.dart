@@ -2,16 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:provider/provider.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
+import 'package:happyp/data/service/auth_service.dart';
 
 class EmailCodeValidation extends StatefulWidget {
   final String email;
-  final Function onCodeValidated;
+  final Function? onCodeValidated; // Hacerlo opcional
 
   const EmailCodeValidation({
     super.key,
     required this.email,
-    required this.onCodeValidated,
+    this.onCodeValidated, // Opcional
   });
 
   @override
@@ -36,8 +38,6 @@ class _EmailCodeValidationState extends State<EmailCodeValidation> {
   int resendCountdown = 60;
   Timer? _timer;
   bool canResend = false;
-
-  final String mockValidCode = "123456"; // Código simulado
 
   @override
   void initState() {
@@ -107,26 +107,50 @@ class _EmailCodeValidationState extends State<EmailCodeValidation> {
       errorMessage = null;
     });
 
-    // Simulación de validación
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Usar el servicio real de autenticación
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final isValid = await authService.verifyCode(widget.email, enteredCode);
 
-    if (enteredCode == mockValidCode) {
       setState(() {
         isLoading = false;
-        isCodeValid = true;
       });
 
-      _showToast("Código validado correctamente");
+      if (isValid) {
+        setState(() {
+          isCodeValid = true;
+        });
 
-      // Llamamos a la función onCodeValidated que ahora redirigirá a LoginScreen
-      widget.onCodeValidated();
+        _showToast("Código validado correctamente");
 
-      // Ya no es necesario la navegación aquí, ya que se manejará en el callback
-      // La función onCodeValidated está configurada en RegisterScreen para navegar a LoginScreen
-    } else {
+        // Llamar callback si existe (para registro)
+        if (widget.onCodeValidated != null) {
+          widget.onCodeValidated!();
+        } else {
+          // Si no hay callback, navegar hacia atrás (para login)
+          Navigator.of(context).pop(true); // Retornar true para indicar éxito
+        }
+      } else {
+        setState(() {
+          errorMessage = "Código incorrecto. Por favor verifica e intenta nuevamente.";
+
+          // Limpiar los campos de código
+          for (var controller in codeControllers) {
+            controller.clear();
+          }
+
+          // Enfocar el primer campo
+          if (focusNodes.isNotEmpty) {
+            focusNodes[0].requestFocus();
+          }
+        });
+
+        _showToast("Código incorrecto. Por favor verifica e intenta nuevamente.", isError: true);
+      }
+    } catch (e) {
       setState(() {
         isLoading = false;
-        errorMessage = "Código incorrecto. Por favor verifica e intenta nuevamente.";
+        errorMessage = "Error de conexión. Por favor intenta nuevamente.";
 
         // Limpiar los campos de código
         for (var controller in codeControllers) {
@@ -139,7 +163,8 @@ class _EmailCodeValidationState extends State<EmailCodeValidation> {
         }
       });
 
-      _showToast("Código incorrecto. Por favor verifica e intenta nuevamente.", isError: true);
+      _showToast("Error de conexión. Por favor intenta nuevamente.", isError: true);
+      print('Error validating code: $e');
     }
   }
 
@@ -151,17 +176,30 @@ class _EmailCodeValidationState extends State<EmailCodeValidation> {
       errorMessage = null;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Usar el servicio real de autenticación
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final isResent = await authService.resendCode(widget.email);
 
-    setState(() {
-      isLoading = false;
-    });
+      setState(() {
+        isLoading = false;
+      });
 
-    // Reiniciar el contador
-    startResendTimer();
+      if (isResent) {
+        // Reiniciar el contador
+        startResendTimer();
+        _showToast('Código reenviado exitosamente');
+      } else {
+        _showToast('Error al reenviar el código. Intenta nuevamente.', isError: true);
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
 
-    // Mostrar mensaje de éxito con toast
-    _showToast('Código reenviado exitosamente');
+      _showToast('Error de conexión. Intenta nuevamente.', isError: true);
+      print('Error resending code: $e');
+    }
   }
 
   @override
@@ -332,7 +370,7 @@ class _EmailCodeValidationState extends State<EmailCodeValidation> {
         ),
         const SizedBox(height: 8),
         TextButton(
-          onPressed: canResend ? _resendCode : null,
+          onPressed: canResend && !isLoading ? _resendCode : null,
           style: TextButton.styleFrom(
             foregroundColor: canResend ? AppColors.primary : Colors.grey,
           ),

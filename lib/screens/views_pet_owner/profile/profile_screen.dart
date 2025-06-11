@@ -142,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // Cerrar el diálogo y navegar al login
                 if (context.mounted) {
                   Navigator.of(context).pop(); // Cierra el diálogo
-                  Navigator.of(context).pushReplacementNamed('/login-duenio');
+                  Navigator.of(context).pushReplacementNamed('/login');
                 }
               }
             },
