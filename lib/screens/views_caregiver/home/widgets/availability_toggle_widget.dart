@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:happyp/data/service/caregiver_availability_service.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
 
@@ -24,6 +25,7 @@ class AvailabilityToggleWidget extends StatefulWidget {
 class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
   bool _isAvailable = false;
   bool _isLoading = false;
+  bool _hasInitialAvailability = false; // Nuevo: controla si ya se creó el registro inicial
   final CaregiverAvailabilityService _availabilityService = CaregiverAvailabilityService();
   Position? _currentPosition;
   String _currentLocationName = 'Ubicación desconocida';
@@ -33,6 +35,43 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
     super.initState();
     _availabilityService.setAuthToken(widget.authToken);
     _getCurrentLocation();
+    _checkInitialAvailabilityStatus();
+  }
+
+  // Nuevo método: verificar si ya existe un registro de disponibilidad
+  Future<void> _checkInitialAvailabilityStatus() async {
+    try {
+      final hasRecord = await _getInitialAvailabilityCreated();
+      setState(() {
+        _hasInitialAvailability = hasRecord;
+      });
+    } catch (e) {
+      // Si hay error, asumimos que no existe
+      setState(() {
+        _hasInitialAvailability = false;
+      });
+    }
+  }
+
+  // Guardar en SharedPreferences que ya se creó la disponibilidad inicial
+  Future<void> _saveInitialAvailabilityCreated() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('availability_created_${widget.caregiverId}', true);
+    } catch (e) {
+      print('Error guardando estado de disponibilidad: $e');
+    }
+  }
+
+  // Obtener de SharedPreferences si ya se creó la disponibilidad inicial
+  Future<bool> _getInitialAvailabilityCreated() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('availability_created_${widget.caregiverId}') ?? false;
+    } catch (e) {
+      print('Error obteniendo estado de disponibilidad: $e');
+      return false;
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -73,7 +112,6 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
 
   Future<void> _toggleAvailability() async {
     if (_currentPosition == null) {
-      print(widget.authToken);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Esperando ubicación...'),
@@ -89,7 +127,7 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
 
     try {
       if (_isAvailable) {
-        // Poner como no disponible
+        // Cambiar a NO DISPONIBLE
         await _availabilityService.setCaregiverUnavailable(
           caregiverId: widget.caregiverId,
         );
@@ -98,23 +136,43 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         });
         _showSnackBar('Ahora estás NO DISPONIBLE', Colors.red);
       } else {
-        // Poner como disponible
-        await _availabilityService.createCaregiverAvailability(
-          caregiverId: widget.caregiverId,
-          locationName: _currentLocationName,
-          locationLatitude: _currentPosition!.latitude,
-          locationLongitude: _currentPosition!.longitude,
-        );
-        setState(() {
-          _isAvailable = true;
-        });
-        _showSnackBar('¡Ahora estás DISPONIBLE!', Colors.green);
+        // Cambiar a DISPONIBLE
+        if (!_hasInitialAvailability) {
+          // Primera vez: crear el registro inicial
+          await _availabilityService.createCaregiverAvailability(
+            caregiverId: widget.caregiverId,
+            locationName: _currentLocationName,
+            locationLatitude: _currentPosition!.latitude,
+            locationLongitude: _currentPosition!.longitude,
+          );
+
+          // Guardar que ya se creó la disponibilidad inicial
+          await _saveInitialAvailabilityCreated();
+
+          setState(() {
+            _hasInitialAvailability = true;
+            _isAvailable = true;
+          });
+          _showSnackBar('¡Registro creado! Ahora estás DISPONIBLE', Colors.green);
+        } else {
+          // Ya existe el registro: solo actualizar a disponible
+          await _availabilityService.setCaregiverAvailable(
+            caregiverId: widget.caregiverId,
+            locationName: _currentLocationName,
+            locationLatitude: _currentPosition!.latitude,
+            locationLongitude: _currentPosition!.longitude,
+          );
+          setState(() {
+            _isAvailable = true;
+          });
+          _showSnackBar('¡Ahora estás DISPONIBLE!', Colors.green);
+        }
       }
 
       // Notificar el cambio
       widget.onAvailabilityChanged?.call(_isAvailable);
     } catch (e) {
-      _showSnackBar('Error ayudenloooo: $e', Colors.red);
+      _showSnackBar('Error: $e', Colors.red);
     } finally {
       setState(() {
         _isLoading = false;
@@ -141,7 +199,6 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-
           children: [
             Row(
               children: [
@@ -178,13 +235,36 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
                         Text(
                           'Lat: ${_currentPosition!.latitude.toStringAsFixed(5)}, '
                               'Lng: ${_currentPosition!.longitude.toStringAsFixed(5)}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                     ],
                   ),
                 ),
               ],
             ),
+            // Mostrar indicador si es la primera vez
+            if (!_hasInitialAvailability)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Primera vez: se creará tu perfil de disponibilidad',
+                        style: TextStyle(fontSize: 12, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -208,7 +288,11 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
                   ),
                 )
                     : Text(
-                  _isAvailable ? 'PONERME NO DISPONIBLE' : 'PONERME DISPONIBLE',
+                  _isAvailable
+                      ? 'PONERME NO DISPONIBLE'
+                      : (_hasInitialAvailability
+                      ? 'PONERME DISPONIBLE'
+                      : 'CREAR DISPONIBILIDAD'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
