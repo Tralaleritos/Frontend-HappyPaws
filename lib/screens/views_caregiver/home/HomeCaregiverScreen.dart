@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/data/service/notification_service.dart';
+import 'package:happyp/screens/views_caregiver/home/widgets/availability_toggle_widget.dart';
 import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/data/service/auth_service.dart';
@@ -24,6 +25,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
   @override
   void initState() {
     super.initState();
+    super.didChangeDependencies();
     _loadPets();
     _initializeNotificationService();
   }
@@ -113,6 +115,13 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
       ),
     );
   }
+
+  // Callback para manejar cambios en la disponibilidad
+  void _onAvailabilityChanged(bool isAvailable) {
+    // Aquí puedes agregar lógica adicional cuando cambie la disponibilidad
+    print('Disponibilidad cambiada: $isAvailable');
+  }
+
 
   @override
   void dispose() {
@@ -275,6 +284,28 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
               ],
             ),
           ),
+          // AGREGAR EL WIDGET DE DISPONIBILIDAD AQUÍ (LÍNEA 241)
+          if (user != null)
+            FutureBuilder<String?>(
+              future: authService.getToken(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data != null) {
+                  return AvailabilityToggleWidget(
+                    caregiverId: int.parse(user.id),
+                    authToken: snapshot.data!,
+                    onAvailabilityChanged: _onAvailabilityChanged,
+                  );
+                } else if (snapshot.hasError) {
+                  return const Center(
+                    child: Text('Error al cargar token de autenticación'),
+                  );
+                } else {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+              },
+            ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0),
             child: Text(
@@ -283,29 +314,6 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
                 fontSize: 16,
                 color: AppColors.textDark,
               ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _pets.length,
-              itemBuilder: (context, index) {
-                final pet = _pets[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.2),
-                      child: Text(pet.name[0].toUpperCase()),
-                    ),
-                    title: Text(pet.name),
-                    subtitle: Text('${pet.breed}, ${pet.age} años'),
-                  ),
-                );
-              },
             ),
           ),
         ],
