@@ -184,7 +184,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: _inputDecoration('Tipo de cuenta', Icons.person),
                   items: const [
                     DropdownMenuItem(value: 'OWNER', child: Text('Dueño de mascota')),
-                    DropdownMenuItem(value: 'CARETAKER', child: Text('Cuidador')),
+                    DropdownMenuItem(value: 'CAREGIVER', child: Text('Cuidador')),
                     DropdownMenuItem(value: 'ADMIN', child: Text('Administrador')),
                   ],
                   value: _selectedRole,
