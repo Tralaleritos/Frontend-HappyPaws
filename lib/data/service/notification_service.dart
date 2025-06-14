@@ -125,12 +125,14 @@ class NotificationService extends ChangeNotifier {
         debugPrint('Datos JSON parseados: $data');
 
         final OfferResponse offer = OfferResponse.fromJson(data);
-        debugPrint('OfferResponse creada: ID=${offer.id}, Descripción=${offer.description}');
+        debugPrint(
+            'OfferResponse creada: ID=${offer.id}, Descripción=${offer.description}');
 
         _notifications.insert(0, offer);
         _unreadCount++;
 
-        debugPrint('Notificación añadida a la lista. Total no leídas: $_unreadCount');
+        debugPrint(
+            'Notificación añadida a la lista. Total no leídas: $_unreadCount');
         notifyListeners();
       } catch (e) {
         debugPrint('ERROR al procesar la notificación: $e');
@@ -161,7 +163,10 @@ class NotificationService extends ChangeNotifier {
 
   // Aceptar una oferta
   void acceptOffer(OfferResponse offer) {
-    if (_stompClient != null && _isConnected && _authToken != null && _caregiverId != null) {
+    if (_stompClient != null &&
+        _isConnected &&
+        _authToken != null &&
+        _caregiverId != null) {
       final acceptMessage = {
         'caregiverId': _caregiverId,
         'offerId': offer.id,
@@ -185,7 +190,10 @@ class NotificationService extends ChangeNotifier {
   // Reconectar manualmente
   void reconnect() {
     debugPrint('Reconectando...');
-    if (_authToken != null && _userId != null && _caregiverId != null && _serverUrl != null) {
+    if (_authToken != null &&
+        _userId != null &&
+        _caregiverId != null &&
+        _serverUrl != null) {
       _connectToWebSocket();
     }
   }
