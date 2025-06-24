@@ -379,62 +379,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildPetCard(
-      BuildContext context,
-      String name,
-      String type,
-      String breed,
-      String? photoUrl,
-      ) {
-    return Container(
-      width: 120,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.tertiary.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          photoUrl != null && photoUrl.isNotEmpty
-              ? CircleAvatar(
-            radius: 30,
-            backgroundImage: NetworkImage(photoUrl),
-          )
-              : CircleAvatar(
-            radius: 30,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: Icon(
-              type.toLowerCase() == 'perro'
-                  ? Icons.pets
-                  : type.toLowerCase() == 'gato'
-                  ? Icons.face
-                  : Icons.pets,
-              size: 30,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            name,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            breed,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildAppointmentCard(
       BuildContext context,
       String title,

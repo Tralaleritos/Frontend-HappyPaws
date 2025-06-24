@@ -172,7 +172,6 @@ class _HomeScreenContent extends StatelessWidget {
                     ),
                   );
                 }
-
                 return GridView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -191,36 +190,6 @@ class _HomeScreenContent extends StatelessWidget {
                   },
                 );
               },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Botón de filtros
-          FloatingActionButton(
-            heroTag: 'filter_button',
-            mini: true,
-            backgroundColor: Colors.white,
-            onPressed: () {
-              // Mostrar modal de filtros
-            },
-            child: const Icon(
-              Icons.filter_list,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Botón de ubicación actual
-          FloatingActionButton(
-            heroTag: 'location_button',
-            mini: true,
-            backgroundColor: Colors.white,
-            onPressed: controller.getCurrentLocation,
-            child: const Icon(
-              Icons.my_location,
-              color: AppColors.primary,
             ),
           ),
         ],
