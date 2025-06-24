@@ -24,8 +24,9 @@ class AvailabilityToggleWidget extends StatefulWidget {
 
 class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
   bool _isAvailable = false;
-  bool _isLoading = false;
-  bool _hasInitialAvailability = false; // Nuevo: controla si ya se creó el registro inicial
+  bool _isCreatingAvailability = false;
+  bool _isTogglingAvailability = false;
+  bool _hasInitialAvailability = false;
   final CaregiverAvailabilityService _availabilityService = CaregiverAvailabilityService();
   Position? _currentPosition;
   String _currentLocationName = 'Ubicación desconocida';
@@ -38,7 +39,6 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
     _checkInitialAvailabilityStatus();
   }
 
-  // Nuevo método: verificar si ya existe un registro de disponibilidad
   Future<void> _checkInitialAvailabilityStatus() async {
     try {
       final hasRecord = await _getInitialAvailabilityCreated();
@@ -46,14 +46,12 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         _hasInitialAvailability = hasRecord;
       });
     } catch (e) {
-      // Si hay error, asumimos que no existe
       setState(() {
         _hasInitialAvailability = false;
       });
     }
   }
 
-  // Guardar en SharedPreferences que ya se creó la disponibilidad inicial
   Future<void> _saveInitialAvailabilityCreated() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -63,7 +61,6 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
     }
   }
 
-  // Obtener de SharedPreferences si ya se creó la disponibilidad inicial
   Future<bool> _getInitialAvailabilityCreated() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -76,7 +73,6 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      // Verificar permisos de ubicación
       final permission = await Permission.locationWhenInUse.request();
       if (permission.isDenied) {
         setState(() {
@@ -85,13 +81,11 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         return;
       }
 
-      // Obtener posición actual
       final position = await Geolocator.getCurrentPosition();
       setState(() {
         _currentPosition = position;
       });
 
-      // Obtener nombre de la ubicación
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
@@ -110,6 +104,47 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
     }
   }
 
+  Future<void> _createInitialAvailability() async {
+    if (_currentPosition == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esperando ubicación...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isCreatingAvailability = true;
+    });
+
+    try {
+      await _availabilityService.createCaregiverAvailability(
+        caregiverId: widget.caregiverId,
+        locationName: _currentLocationName,
+        locationLatitude: _currentPosition!.latitude,
+        locationLongitude: _currentPosition!.longitude,
+      );
+
+      await _saveInitialAvailabilityCreated();
+
+      setState(() {
+        _hasInitialAvailability = true;
+        _isAvailable = true; // Se crea como disponible por defecto
+      });
+
+      _showSnackBar('¡Disponibilidad creada exitosamente!', Colors.green);
+      widget.onAvailabilityChanged?.call(_isAvailable);
+    } catch (e) {
+      _showSnackBar('Error al crear disponibilidad: $e', Colors.red);
+    } finally {
+      setState(() {
+        _isCreatingAvailability = false;
+      });
+    }
+  }
+
   Future<void> _toggleAvailability() async {
     if (_currentPosition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +157,7 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
     }
 
     setState(() {
-      _isLoading = true;
+      _isTogglingAvailability = true;
     });
 
     try {
@@ -137,45 +172,24 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         _showSnackBar('Ahora estás NO DISPONIBLE', Colors.red);
       } else {
         // Cambiar a DISPONIBLE
-        if (!_hasInitialAvailability) {
-          // Primera vez: crear el registro inicial
-          await _availabilityService.createCaregiverAvailability(
-            caregiverId: widget.caregiverId,
-            locationName: _currentLocationName,
-            locationLatitude: _currentPosition!.latitude,
-            locationLongitude: _currentPosition!.longitude,
-          );
-
-          // Guardar que ya se creó la disponibilidad inicial
-          await _saveInitialAvailabilityCreated();
-
-          setState(() {
-            _hasInitialAvailability = true;
-            _isAvailable = true;
-          });
-          _showSnackBar('¡Registro creado! Ahora estás DISPONIBLE', Colors.green);
-        } else {
-          // Ya existe el registro: solo actualizar a disponible
-          await _availabilityService.setCaregiverAvailable(
-            caregiverId: widget.caregiverId,
-            locationName: _currentLocationName,
-            locationLatitude: _currentPosition!.latitude,
-            locationLongitude: _currentPosition!.longitude,
-          );
-          setState(() {
-            _isAvailable = true;
-          });
-          _showSnackBar('¡Ahora estás DISPONIBLE!', Colors.green);
-        }
+        await _availabilityService.setCaregiverAvailable(
+          caregiverId: widget.caregiverId,
+          locationName: _currentLocationName,
+          locationLatitude: _currentPosition!.latitude,
+          locationLongitude: _currentPosition!.longitude,
+        );
+        setState(() {
+          _isAvailable = true;
+        });
+        _showSnackBar('¡Ahora estás DISPONIBLE!', Colors.green);
       }
 
-      // Notificar el cambio
       widget.onAvailabilityChanged?.call(_isAvailable);
     } catch (e) {
       _showSnackBar('Error: $e', Colors.red);
     } finally {
       setState(() {
-        _isLoading = false;
+        _isTogglingAvailability = false;
       });
     }
   }
@@ -200,6 +214,7 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Estado actual
             Row(
               children: [
                 Icon(
@@ -219,6 +234,8 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
               ],
             ),
             const SizedBox(height: 12),
+
+            // Información de ubicación
             Row(
               children: [
                 const Icon(Icons.location_on, size: 16, color: Colors.grey),
@@ -242,34 +259,88 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
                 ),
               ],
             ),
-            // Mostrar indicador si es la primera vez
-            if (!_hasInitialAvailability)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Primera vez: se creará tu perfil de disponibilidad',
-                        style: TextStyle(fontSize: 12, color: Colors.blue),
-                      ),
-                    ),
-                  ],
+
+            // Indicador de estado de disponibilidad inicial
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _hasInitialAvailability
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                    color: _hasInitialAvailability
+                        ? Colors.green.withOpacity(0.3)
+                        : Colors.orange.withOpacity(0.3)
                 ),
               ),
+              child: Row(
+                children: [
+                  Icon(
+                    _hasInitialAvailability ? Icons.check_circle_outline : Icons.info_outline,
+                    size: 16,
+                    color: _hasInitialAvailability ? Colors.green : Colors.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _hasInitialAvailability
+                          ? 'Disponibilidad configurada'
+                          : 'Disponibilidad no configurada',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _hasInitialAvailability ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 16),
+
+            // Botón para crear disponibilidad inicial
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _toggleAvailability,
+                onPressed: _isCreatingAvailability ? null : _createInitialAvailability,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _hasInitialAvailability ? Colors.grey : Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isCreatingAvailability
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : Text(
+                  _hasInitialAvailability
+                      ? 'DISPONIBILIDAD YA CREADA'
+                      : 'CREAR DISPONIBILIDAD INICIAL',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Botón para cambiar disponibilidad
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isTogglingAvailability ? null : _toggleAvailability,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isAvailable ? Colors.red : AppColors.primary,
                   foregroundColor: Colors.white,
@@ -278,7 +349,7 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: _isLoading
+                child: _isTogglingAvailability
                     ? const SizedBox(
                   height: 20,
                   width: 20,
@@ -290,9 +361,7 @@ class _AvailabilityToggleWidgetState extends State<AvailabilityToggleWidget> {
                     : Text(
                   _isAvailable
                       ? 'PONERME NO DISPONIBLE'
-                      : (_hasInitialAvailability
-                      ? 'PONERME DISPONIBLE'
-                      : 'CREAR DISPONIBILIDAD'),
+                      : 'PONERME DISPONIBLE',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

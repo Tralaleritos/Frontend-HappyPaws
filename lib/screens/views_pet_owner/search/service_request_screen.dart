@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-import 'package:happyp/data/models/offer.dart';
-import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/offers/offer.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
+import 'package:happyp/data/models/pet/species.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/offer_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
 import 'package:provider/provider.dart';
+
+import '../../../data/service/service_type_service.dart';
 class ServiceRequestScreen extends StatefulWidget {
   final String serviceType;
 
@@ -22,6 +25,7 @@ class ServiceRequestScreen extends StatefulWidget {
 class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
+  final _priceController = TextEditingController();
 
   DateTime? _selectedDate;
   TimeOfDay? _startTime;
@@ -31,12 +35,14 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   double? _locationLongitude;
 
   bool _isLoading = false;
-  bool _loadingPets = true; // Estado de carga para las mascotas
+  bool _loadingPets = true;
+  bool _loadingServices = true;
 
   // Servicios
   late final OfferService _offerService;
   late final UserService _userService;
-  late final PetService _petService; // Nuevo servicio
+  late final PetService _petService;
+  late final ServiceTypeService _serviceTypeService;
 
   // Mascotas del usuario obtenidas del API
   List<Pet> _availablePets = [];
@@ -44,12 +50,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   // Mascotas seleccionadas
   final Set<Pet> _selectedPets = {};
 
+  // Servicios disponibles y seleccionados
+  List<ServiceType> _availableServices = [];
+  final Set<ServiceType> _selectedServices = {};
+
   @override
   void initState() {
     super.initState();
     _offerService = OfferService();
     _userService = UserService();
-    _petService = PetService(); // Inicializar servicio
+    _petService = PetService();
+    _serviceTypeService = ServiceTypeService();
     _initializeServices();
   }
 
@@ -60,10 +71,14 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     if (token != null) {
       _offerService.setAuthToken(token);
       _userService.setAuthToken(token);
-      _petService.setAuthToken(token); // Establecer token para PetService
+      _petService.setAuthToken(token);
+      _serviceTypeService.setAuthToken(token);
 
-      // Cargar las mascotas del usuario
-      await _loadUserPets();
+      // Cargar datos en paralelo
+      await Future.wait([
+        _loadUserPets(),
+        _loadAvailableServices(),
+      ]);
     }
   }
 
@@ -98,9 +113,55 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
   }
 
+  // Método para cargar servicios disponibles
+  Future<void> _loadAvailableServices() async {
+    try {
+      setState(() {
+        _loadingServices = true;
+      });
+
+      // Llamada real al API para obtener los servicios
+      final services = await _serviceTypeService.getAllServiceTypes();
+
+      if (mounted) {
+        setState(() {
+          _availableServices = services;
+          _loadingServices = false;
+        });
+
+        print('Servicios cargados: ${services.length}');
+        for (var service in services) {
+          print('- ${service.name} (ID: ${service.id})');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          // Si falla la carga del API, usar servicios hardcodeados como fallback
+          _availableServices = _getHardcodedServices();
+          _loadingServices = false;
+        });
+        _showSnackBar('Usando servicios por defecto: $e', Colors.orange);
+        print('Error cargando servicios, usando hardcoded: $e');
+      }
+    }
+  }
+
+  // Servicios hardcodeados (reemplaza con llamada al API)
+  List<ServiceType> _getHardcodedServices() {
+    return [
+      ServiceType(id: 1, name: 'Paseo', description: 'Paseo diario para mascotas'),
+      ServiceType(id: 2, name: 'Cuidado', description: 'Cuidado general de mascotas'),
+      ServiceType(id: 3, name: 'Alimentación', description: 'Alimentación y cuidado básico'),
+      ServiceType(id: 4, name: 'Veterinario', description: 'Acompañamiento veterinario'),
+      ServiceType(id: 5, name: 'Guardería', description: 'Guardería temporal'),
+    ];
+  }
+
   @override
   void dispose() {
     _descriptionController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -167,16 +228,25 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       return;
     }
 
+    if (_selectedServices.isEmpty) {
+      _showSnackBar('Por favor selecciona al menos un servicio', Colors.red);
+      return;
+    }
+
+    final price = double.tryParse(_priceController.text);
+    if (price == null || price <= 0) {
+      _showSnackBar('Por favor ingresa un precio válido', Colors.red);
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-
       // Obtener el ID del usuario actual
       String? userId = await _userService.getUserId();
-      print('UserID obtenido: $userId'); // Debug
+      print('UserID obtenido: $userId');
 
       if (userId == null || userId.isEmpty) {
         throw Exception('No se pudo obtener el ID del usuario. Por favor inicia sesión nuevamente.');
@@ -187,41 +257,34 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         throw Exception('ID de usuario inválido: $userId');
       }
 
-      // Crear los modelos necesarios
-      final location = LocationModel(
-        name: _locationName,
-        latitude: _locationLatitude!,
-        longitude: _locationLongitude!,
-      );
-
-      final dateRange = DateRangeModel(
-        date: _selectedDate!.toIso8601String().split('T').first,
-        startTime: _formatTimeOfDay(_startTime!),
-        endTime: _formatTimeOfDay(_endTime!),
-      );
-
+      // Validar mascotas seleccionadas
       List<Pet> validPets = _selectedPets.where((pet) => pet.id != 0).toList();
       if (validPets.length != _selectedPets.length) {
         throw Exception('Algunas mascotas seleccionadas no tienen ID válido');
       }
 
-      // Crear la solicitud
+      // Crear la solicitud con la nueva estructura
       final request = CreateOfferRequest(
         ownerId: userIdInt,
-        location: location,
+        locationName: _locationName,
+        locationLatitude: _locationLatitude!,
+        locationLongitude: _locationLongitude!,
         description: _descriptionController.text,
-        range: dateRange,
-        pets: _selectedPets.toList(),
+        date: _selectedDate!.toIso8601String().split('T').first, // YYYY-MM-DD
+        startTime: _formatTimeOfDay(_startTime!), // HH:mm:ss
+        endTime: _formatTimeOfDay(_endTime!), // HH:mm:ss
+        pets: _selectedPets.map((pet) => pet.id).toList(),
+        price: price,
+        services: _selectedServices.map((service) => service.id).toList(),
       );
 
-      print('Enviando request: ${request.toString()}'); // Debug
+      print('Enviando request: ${request.toString()}');
 
       // Enviar la solicitud al backend
       final response = await _offerService.createOffer(request);
-      print('Respuesta recibida: ${response.toString()}'); // Debug
+      print('Respuesta recibida: ${response.toString()}');
 
       if (mounted) {
-        // LÍNEA CORREGIDA: No usar ?. ya que id es int, no int?
         String responseId = response.id.toString();
 
         _showSnackBar(
@@ -232,7 +295,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       }
 
     } catch (e) {
-      print('Error completo: $e'); // Debug detallado
+      print('Error completo: $e');
       if (mounted) {
         _showSnackBar('Error al enviar solicitud: $e', Colors.red);
       }
@@ -264,7 +327,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         ),
         const SizedBox(height: 8),
 
-        // Mostrar indicador de carga mientras se cargan las mascotas
         if (_loadingPets)
           const Padding(
             padding: EdgeInsets.all(16.0),
@@ -272,8 +334,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               child: CircularProgressIndicator(),
             ),
           )
-
-        // Mostrar mensaje si no hay mascotas
         else if (_availablePets.isEmpty)
           Container(
             padding: const EdgeInsets.all(16),
@@ -310,8 +370,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    // Aquí puedes navegar a la pantalla de registro de mascotas
-                    // Navigator.push(context, MaterialPageRoute(builder: (context) => AddPetScreen()));
                     _showSnackBar('Funcionalidad de agregar mascota pendiente', Colors.orange);
                   },
                   style: ElevatedButton.styleFrom(
@@ -323,8 +381,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               ],
             ),
           )
-
-        // Mostrar lista de mascotas
         else
           Column(
             children: _availablePets.map((pet) {
@@ -379,7 +435,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
             }).toList(),
           ),
 
-        // Botón para refrescar mascotas
         if (!_loadingPets && _availablePets.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -391,6 +446,76 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 foregroundColor: AppColors.primary,
               ),
             ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildServiceCheckboxes() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Selecciona los servicios',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+
+        if (_loadingServices)
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_availableServices.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Text(
+              'No hay servicios disponibles',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          Column(
+            children: _availableServices.map((service) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: CheckboxListTile(
+                  title: Text(
+                    service.name,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(service.description),
+                  secondary: CircleAvatar(
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Icon(
+                      Icons.home_repair_service,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  value: _selectedServices.contains(service),
+                  onChanged: (bool? selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedServices.add(service);
+                      } else {
+                        _selectedServices.remove(service);
+                      }
+                    });
+                  },
+                ),
+              );
+            }).toList(),
           ),
       ],
     );
@@ -423,6 +548,29 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Por favor ingresa una descripción';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Precio
+              TextFormField(
+                controller: _priceController,
+                decoration: const InputDecoration(
+                  labelText: 'Precio (S/.)',
+                  hintText: '0.00',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.attach_money),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Por favor ingresa el precio';
+                  }
+                  final price = double.tryParse(value);
+                  if (price == null || price <= 0) {
+                    return 'Ingresa un precio válido mayor a 0';
                   }
                   return null;
                 },
@@ -571,13 +719,18 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
               _buildPetCheckboxes(),
 
+              const SizedBox(height: 16),
+
+              _buildServiceCheckboxes(),
+
               const SizedBox(height: 24),
 
               // Botón de envío
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: (_isLoading || _loadingPets || _availablePets.isEmpty)
+                  onPressed: (_isLoading || _loadingPets || _loadingServices ||
+                      _availablePets.isEmpty)
                       ? null
                       : _submitRequest,
                   style: ElevatedButton.styleFrom(

@@ -1,10 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:stomp_dart_client/stomp.dart';
-import 'package:stomp_dart_client/stomp_config.dart';
-import 'package:stomp_dart_client/stomp_frame.dart';
+import 'package:happyp/data/models/notifications/user_response.dart';
 
-
-// Modelos de datos
 class Location {
   final String name;
   final double latitude;
@@ -45,19 +40,19 @@ class DateRange {
   }
 }
 
-class Pet {
+class PetNotify {
   final int id;
   final String name;
   final String type;
 
-  Pet({
+  PetNotify({
     required this.id,
     required this.name,
     required this.type,
   });
 
-  factory Pet.fromJson(Map<String, dynamic> json) {
-    return Pet(
+  factory PetNotify.fromJson(Map<String, dynamic> json) {
+    return PetNotify(
       id: json['id'] ?? 0,
       name: json['name'] ?? '',
       type: json['type'] ?? '',
@@ -65,37 +60,19 @@ class Pet {
   }
 }
 
-class UserResponse {
-  final int id;
-  final String username;
-  final String? imgUrl;
-
-  UserResponse({
-    required this.id,
-    required this.username,
-    this.imgUrl,
-  });
-
-  factory UserResponse.fromJson(Map<String, dynamic> json) {
-    return UserResponse(
-      id: json['id'] ?? 0,
-      username: json['username'] ?? '',
-      imgUrl: json['imgUrl'],
-    );
-  }
-}
-
 class OfferResponse {
   final int id;
   final String description;
+  final double price;
   final Location location;
   final DateRange range;
-  final List<Pet> pets;
+  final List<PetNotify> pets;
   final UserResponse owner;
 
   OfferResponse({
     required this.id,
     required this.description,
+    required this.price,
     required this.location,
     required this.range,
     required this.pets,
@@ -106,10 +83,11 @@ class OfferResponse {
     return OfferResponse(
       id: json['id'] ?? 0,
       description: json['description'] ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
       location: Location.fromJson(json['location'] ?? {}),
       range: DateRange.fromJson(json['range'] ?? {}),
       pets: (json['pets'] as List<dynamic>?)
-          ?.map((pet) => Pet.fromJson(pet))
+          ?.map((pet) => PetNotify.fromJson(pet))
           .toList() ??
           [],
       owner: UserResponse.fromJson(json['owner'] ?? {}),

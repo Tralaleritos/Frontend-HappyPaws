@@ -1,9 +1,9 @@
 // screens/add_pet_screen.dart
 import 'package:flutter/material.dart';
+import 'package:happyp/data/models/pet/species.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-import 'package:happyp/data/models/pet.dart';
 import 'package:happyp/screens/views_pet_owner/add_pet/controllers/add_pet_controller.dart';
 
 class AddPetScreen extends StatelessWidget {

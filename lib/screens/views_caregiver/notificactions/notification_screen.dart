@@ -1,7 +1,7 @@
 // notification_screen.dart - Versión actualizada que usa el servicio global
 import 'package:flutter/material.dart';
-import 'package:happyp/data/models/notification.dart';
 import 'package:happyp/data/service/notification_service.dart';
+import '../../../data/models/notifications/offer_response.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final int caregiverId;
@@ -59,6 +59,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 Text('Ubicación: ${offer.location.name}'),
                 const SizedBox(height: 8),
                 Text('Fecha: ${offer.range.date}'),
+                Text('Precio: ${offer.price}'),
                 Text('Horario: ${offer.range.startTime} - ${offer.range.endTime}'),
                 const SizedBox(height: 8),
                 if (offer.pets.isNotEmpty) ...[

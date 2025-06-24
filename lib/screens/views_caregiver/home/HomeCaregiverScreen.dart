@@ -4,11 +4,8 @@ import 'package:happyp/screens/views_caregiver/home/widgets/availability_toggle_
 import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/data/service/auth_service.dart';
-import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
-import 'package:happyp/data/models/pet.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-// Importar el nuevo servicio de notificaciones
 
 class HomeCaregiverScreen extends StatefulWidget {
   const HomeCaregiverScreen({super.key});
@@ -18,110 +15,19 @@ class HomeCaregiverScreen extends StatefulWidget {
 }
 
 class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
-  List<Pet> _pets = [];
-  bool _isLoading = true;
+  // Variables de estado
+  bool _isLoading = true; // Cambiar de 'final' a 'bool' para poder modificarla
   final NotificationService _notificationService = NotificationService();
+
+  // Variables para el caregiver actual
+  int? _currentCaregiverId;
+  String? _authToken;
 
   @override
   void initState() {
     super.initState();
-    super.didChangeDependencies();
-    _loadPets();
-    _initializeNotificationService();
+    _initializeScreen();
   }
-
-  Future<void> _loadPets() async {
-    try {
-      final petService = Provider.of<PetService>(context, listen: false);
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final userService = UserService();
-
-      await authService.fetchAndSetUserId(userService);
-      petService.setAuthToken(await authService.getToken() ?? '');
-
-      final pets = await petService.getUserPets();
-
-      setState(() {
-        _pets = pets;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar mascotas: $e')),
-      );
-    }
-  }
-
-  Future<void> _initializeNotificationService() async {
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final token = await authService.getToken();
-      final user = authService.currentUser;
-      final caregiverId = int.parse(authService.currentUser!.id);
-
-      if (token != null && user != null) {
-        // Inicializar el servicio de notificaciones
-        _notificationService.initialize(
-          authToken: token,
-          userId: user.id.toString(),
-          caregiverId: caregiverId, // Usar el ID del caregiver actual
-          serverUrl: 'http://10.0.2.2:5000/api/v1',
-        );
-
-        // Escuchar cambios en las notificaciones
-        _notificationService.addListener(_onNotificationChanged);
-      }
-    } catch (e) {
-      print('Error al inicializar servicio de notificaciones: $e');
-    }
-  }
-
-  void _onNotificationChanged() {
-    // Actualizar la UI cuando lleguen nuevas notificaciones
-    setState(() {});
-
-    // Mostrar SnackBar si hay nuevas notificaciones
-    if (_notificationService.unreadCount > 0) {
-      final latestNotification = _notificationService.notifications.first;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nueva oferta: ${latestNotification.description}'),
-          backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Ver',
-            textColor: Colors.white,
-            onPressed: () {
-              _navigateToNotifications();
-            },
-          ),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  void _navigateToNotifications() {
-    // Marcar como leídas antes de navegar
-    _notificationService.markAsRead();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const NotificationsScreen(
-          caregiverId: 2,
-          serverUrl: 'http://10.0.2.2:5000/api/v1',
-        ),
-      ),
-    );
-  }
-
-  // Callback para manejar cambios en la disponibilidad
-  void _onAvailabilityChanged(bool isAvailable) {
-    // Aquí puedes agregar lógica adicional cuando cambie la disponibilidad
-    print('Disponibilidad cambiada: $isAvailable');
-  }
-
 
   @override
   void dispose() {
@@ -129,193 +35,350 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  // ===================== MÉTODOS DE INICIALIZACIÓN =====================
+
+  Future<void> _initializeScreen() async {
+    try {
+      await _loadUserData();
+      await _initializeNotificationService();
+    } catch (e) {
+      print('Error en inicialización: $e');
+      _showErrorSnackBar('Error al inicializar la aplicación: $e');
+    } finally {
+      // Importante: actualizar el estado cuando termine la carga
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+
+  Future<void> _loadUserData() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final userService = UserService();
+
+      await authService.fetchAndSetUserId(userService);
+
+      _authToken = await authService.getToken();
+      final user = authService.currentUser;
+
+      if (user != null) {
+        _currentCaregiverId = int.tryParse(user.id);
+        if (_currentCaregiverId == null) {
+          throw Exception('ID de cuidador inválido');
+        }
+      } else {
+        throw Exception('Usuario no encontrado');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error al cargar datos del usuario: $e');
+      throw e; // Re-lanzar la excepción para que sea manejada en _initializeScreen
+    }
+  }
+
+
+  Future<void> _initializeNotificationService() async {
+    if (_authToken == null || _currentCaregiverId == null) {
+      print('No se puede inicializar el servicio de notificaciones: datos faltantes');
+      return;
+    }
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final user = authService.currentUser;
+
+      if (user != null) {
+        _notificationService.initialize(
+          authToken: _authToken!,
+          userId: user.id.toString(),
+          caregiverId: _currentCaregiverId!,
+          serverUrl: 'http://10.0.2.2:5000/api/v1',
+        );
+
+        _notificationService.addListener(_onNotificationChanged);
+      }
+    } catch (e) {
+      print('Error al inicializar servicio de notificaciones: $e');
+      // No re-lanzar aquí ya que las notificaciones no son críticas para la carga inicial
+    }
+  }
+
+  // ===================== MANEJO DE NOTIFICACIONES =====================
+
+  void _onNotificationChanged() {
+    if (!mounted) return;
+
+    setState(() {});
+
+    if (_notificationService.unreadCount > 0) {
+      final latestNotification = _notificationService.notifications.first;
+      _showNotificationSnackBar(latestNotification.description);
+    }
+  }
+
+  void _showNotificationSnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Nueva oferta: $message'),
+        backgroundColor: Colors.green,
+        action: SnackBarAction(
+          label: 'Ver',
+          textColor: Colors.white,
+          onPressed: _navigateToNotifications,
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _navigateToNotifications() {
+    if (_currentCaregiverId == null) {
+      _showErrorSnackBar('Error: ID de cuidador no disponible');
+      return;
+    }
+
+    _notificationService.markAsRead();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsScreen(
+          caregiverId: _currentCaregiverId!, // Usar el ID real del cuidador
+          serverUrl: 'http://10.0.2.2:5000/api/v1',
+        ),
+      ),
+    );
+  }
+
+  // ===================== OTROS MÉTODOS =====================
+
+  void _onAvailabilityChanged(bool isAvailable) {
+    print('Disponibilidad cambiada: $isAvailable');
+    // Aquí puedes agregar lógica adicional cuando cambie la disponibilidad
+  }
+
+  Future<void> _handleLogout() async {
+    _showLoadingDialog('Cerrando sesión...');
+
+    try {
+      await Future.delayed(const Duration(seconds: 1));
+      final authProvider = Provider.of<AuthService>(context, listen: false);
+      await authProvider.logout();
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Cierra el diálogo
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Cierra el diálogo
+        _showErrorSnackBar('Error al cerrar sesión: $e');
+      }
+    }
+  }
+
+  // ===================== MÉTODOS DE UI HELPER =====================
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Text(message),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ===================== WIDGETS DE UI =====================
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: const Text('Bienvenido Cuidador'),
+      backgroundColor: AppColors.primary,
+      actions: [
+        _buildNotificationIcon(),
+        _buildSettingsMenu(),
+      ],
+    );
+  }
+
+
+  Widget _buildNotificationIcon() {
+    return Stack(
+      children: [
+        IconButton(
+          icon: const Icon(Icons.notifications),
+          onPressed: _navigateToNotifications,
+          tooltip: 'Notificaciones',
+        ),
+        if (_notificationService.unreadCount > 0)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                '${_notificationService.unreadCount}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSettingsMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.settings),
+      onSelected: (value) async {
+        if (value == 'logout') {
+          await _handleLogout();
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Cerrar sesión'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWelcomeHeader() {
     final authService = Provider.of<AuthService>(context);
     final user = authService.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bienvenido Cuidador'),
-        backgroundColor: AppColors.primary,
-        actions: [
-          // Ícono de notificaciones con indicador
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications),
-                onPressed: _navigateToNotifications,
-                tooltip: 'Notificaciones',
-              ),
-              // Indicador de notificaciones no leídas
-              if (_notificationService.unreadCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '${_notificationService.unreadCount}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '¡Hola, ${user?.username ?? 'cuidador'}!',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          // Cambiar el IconButton simple por un PopupMenuButton igual que en ProfileScreen
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.settings),
-            onSelected: (value) async {
-              if (value == 'logout') {
-                // Mostrar un pequeño diálogo de "Cerrando sesión..."
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (BuildContext context) {
-                    return const AlertDialog(
-                      content: Row(
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(width: 16),
-                          Text("Cerrando sesión..."),
-                        ],
-                      ),
-                    );
-                  },
-                );
-
-                // Esperar un poco para simular una animación suave
-                await Future.delayed(const Duration(seconds: 1));
-                final authProvider = Provider.of<AuthService>(context, listen: false);
-                // Cerrar sesión
-                await authProvider.logout();
-
-                // Cerrar el diálogo y navegar al login
-                if (context.mounted) {
-                  Navigator.of(context).pop(); // Cierra el diálogo
-                  Navigator.of(context).pushReplacementNamed('/login');
-                }
-              }
-            },
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Cerrar sesión'),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 8),
+          _buildConnectionStatus(),
         ],
       ),
+    );
+  }
+
+  Widget _buildConnectionStatus() {
+    return Row(
+      children: [
+        Icon(
+          _notificationService.isConnected ? Icons.wifi : Icons.wifi_off,
+          size: 16,
+          color: _notificationService.isConnected ? Colors.green : Colors.red,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          _notificationService.connectionStatus,
+          style: TextStyle(
+            fontSize: 12,
+            color: _notificationService.isConnected ? Colors.green : Colors.red,
+          ),
+        ),
+        if (!_notificationService.isConnected) ...[
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: _notificationService.reconnect,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28),
+            ),
+            child: const Text(
+              'Reconectar',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAvailabilityToggle() {
+    if (_currentCaregiverId == null || _authToken == null) {
+      return const Center(
+        child: Text('Error al cargar datos del cuidador'),
+      );
+    }
+
+    return AvailabilityToggleWidget(
+      caregiverId: _currentCaregiverId!,
+      authToken: _authToken!,
+      onAvailabilityChanged: _onAvailabilityChanged,
+    );
+  }
+
+  // ===================== BUILD PRINCIPAL =====================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Cargando...'),
+          ],
+        ),
+      )
           : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '¡Hola, ${user?.username ?? 'cuidador'}!',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Estado de conexión de notificaciones
-                Row(
-                  children: [
-                    Icon(
-                      _notificationService.isConnected
-                          ? Icons.wifi
-                          : Icons.wifi_off,
-                      size: 16,
-                      color: _notificationService.isConnected
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _notificationService.connectionStatus,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _notificationService.isConnected
-                            ? Colors.green
-                            : Colors.red,
-                      ),
-                    ),
-                    if (!_notificationService.isConnected) ...[
-                      const SizedBox(width: 8),
-                      TextButton(
-                        onPressed: _notificationService.reconnect,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: const Size(0, 28),
-                        ),
-                        child: const Text(
-                          'Reconectar',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // AGREGAR EL WIDGET DE DISPONIBILIDAD AQUÍ (LÍNEA 241)
-          if (user != null)
-            FutureBuilder<String?>(
-              future: authService.getToken(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data != null) {
-                  return AvailabilityToggleWidget(
-                    caregiverId: int.parse(user.id),
-                    authToken: snapshot.data!,
-                    onAvailabilityChanged: _onAvailabilityChanged,
-                  );
-                } else if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('Error al cargar token de autenticación'),
-                  );
-                } else {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-              },
-            ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text(
-              'Mascotas asignadas:',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textDark,
-              ),
-            ),
-          ),
+          _buildWelcomeHeader(),
+          _buildAvailabilityToggle(),
         ],
       ),
     );

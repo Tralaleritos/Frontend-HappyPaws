@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/data/models/pet/species.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/service/pet_service.dart'; // Cambiado de user_model a pet_service
 import 'package:device_info_plus/device_info_plus.dart';
 

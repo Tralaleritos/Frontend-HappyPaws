@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:happyp/data/models/user/role.dart';
+import 'package:happyp/data/models/user/user.dart';
 import 'package:happyp/data/service/user_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
 
 class AuthService with ChangeNotifier {
   User? _currentUser;

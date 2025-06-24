@@ -1,24 +1,5 @@
-// models/pet.dart
-import 'package:flutter/foundation.dart';
-import 'user.dart';
-
-enum Species {
-  DOG,
-  CAT,
-}
-
-extension SpeciesExtension on Species {
-  String get value {
-    return toString().split('.').last;
-  }
-
-  static Species fromString(String value) {
-    return Species.values.firstWhere(
-          (e) => e.value == value,
-      orElse: () => Species.DOG,
-    );
-  }
-}
+import 'package:happyp/data/models/pet/species.dart';
+import 'package:happyp/data/models/user/user.dart';
 
 class Pet {
   final int id;

@@ -1,7 +1,7 @@
 // pet_section.dart
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/screens/views_pet_owner/home/controllers/home_controller.dart';
 import 'package:happyp/screens/views_pet_owner/add_pet/add_pet_screen.dart';
 import 'package:provider/provider.dart';

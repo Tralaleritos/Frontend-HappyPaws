@@ -35,9 +35,12 @@ dependencies:
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
   device_info_plus: ^9.0.3 # O superior
+  web_socket_channel: ^2.4.0  # Para WebSocket
+  stomp_dart_client: ^0.4.4
+  geolocator: ^10.1.0 # (versión puede variar)
   #geolocator: ^13.0.2
   #location: ^7.0.1
-  #geocoding: ^3.0.0
+  geocoding: ^3.0.0
   #lottie: ^3.2.0
 
   http: any

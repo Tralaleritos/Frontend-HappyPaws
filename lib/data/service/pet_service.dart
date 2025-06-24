@@ -1,8 +1,8 @@
 // services/pet_service.dart
 import 'dart:convert';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:http/http.dart' as http;
-import '../models/pet.dart';
-import '../models/create_pet_request.dart';
+import '../models/pet/create_pet_request.dart';
 
 class PetService {
   final String _baseUrl = 'http://10.0.2.2:5000/api/v1';

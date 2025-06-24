@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:happyp/data/models/caregiver_availability.dart';
 
 class CaregiverAvailabilityService {
   static const String _baseUrl = 'http://10.0.2.2:5000/api/v1';

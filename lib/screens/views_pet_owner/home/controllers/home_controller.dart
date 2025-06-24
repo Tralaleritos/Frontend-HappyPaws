@@ -2,30 +2,28 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:happyp/data/models/pet.dart';
-import 'package:happyp/data/models/pet_caregiver.dart';
+import '../../../../data/models/notifications/caregiver_nearby_response.dart';
+import '../../../../data/service/notification_service.dart';
 
 class HomeController with ChangeNotifier {
   // Servicios
   final PetService _petService = PetService();
   final AuthService _authService;
+  // Servicio de notificaciones
+  final NotificationService _notificationService = NotificationService();
 
-  // Controlador para el mapa
+  // Controlador para el mapa (mantenido para compatibilidad)
   final Completer<GoogleMapController> mapController = Completer();
   bool isSearching = false;
-  bool showCaregiverDetails = false;
   bool showServiceForm = false;
   bool isLoadingPets = false;
 
-  // Estado para los cuidadores visibles y favoritos
-  List<PetCaregiver> visibleCaregivers = [];
-  final List<PetCaregiver> favoriteCaregivers = [];
-
   // Selección actual
-  PetCaregiver? selectedCaregiver;
+  dynamic selectedCaregiverNearby; // CaregiversNearbyResponse
 
   // Información de la mascota - Integración con backend
   List<Pet> userPets = [];
@@ -39,65 +37,22 @@ class HomeController with ChangeNotifier {
   // ID del dueño actual
   String? ownerId;
 
-
-  // Posición inicial del mapa
+  // Posición inicial del mapa (mantenido para compatibilidad)
   static const CameraPosition initialCameraPosition = CameraPosition(
-    target: LatLng(-12.0464, -77.0428), // Lima, Perú por defecto
+    target: LatLng(37.42200, -122.08400), // Lima, Perú por defecto
     zoom: 14.0,
   );
 
-  // Marcadores para el mapa
+  // Marcadores para el mapa (mantenidos para compatibilidad)
   final Set<Marker> markers = {};
   final Set<Circle> circles = {};
-
-  // Datos simulados para los cuidadores (mantenidos tal como estaban)
-  final List<PetCaregiver> mockCaregivers = [
-    PetCaregiver(
-      id: '1',
-      name: 'María López',
-      rating: 4.8,
-      specialties: ['Perros', 'Gatos', 'Paseos'],
-      price: 35.00,
-      distance: 1.2,
-      location: const LatLng(-12.0864, -77.0442),
-      description:
-      'Amante de los animales con 5 años de experiencia cuidando mascotas.',
-      reviews: 124,
-      isOnline: true,
-    ),
-    PetCaregiver(
-      id: '2',
-      name: 'Juan Martínez',
-      rating: 4.6,
-      specialties: ['Perros grandes', 'Entrenamiento', 'Paseos'],
-      price: 40.00,
-      distance: 2.5,
-      location: const LatLng(-12.0951, -77.0535),
-      description:
-      'Entrenador profesional de perros con certificación en primeros auxilios para mascotas.',
-      reviews: 89,
-      isOnline: true,
-    ),
-    PetCaregiver(
-      id: '3',
-      name: 'Ana García',
-      rating: 4.9,
-      specialties: ['Gatos', 'Medicina', 'Cuidado a domicilio'],
-      price: 45.00,
-      distance: 3.1,
-      location: const LatLng(-12.0751, -77.0382),
-      description:
-      'Veterinaria con amplia experiencia en cuidado de mascotas a domicilio.',
-      reviews: 156,
-      isOnline: false,
-    ),
-  ];
+  final Set<Marker> _caregiverMarkers = {};
+  Set<Marker> get allMarkers => {...markers, ..._caregiverMarkers};
 
   HomeController(this._authService) {
     _initializeController();
-    visibleCaregivers = mockCaregivers;
     requestLocationPermission();
-    addMockMarkers();
+    _setupNotificationListener();
   }
 
   // Método de inicialización asíncrono
@@ -111,6 +66,9 @@ class HomeController with ChangeNotifier {
         if (user != null && user.id.isNotEmpty) {
           ownerId = user.id;
           debugPrint('[HomeController] Owner ID asignado: $ownerId');
+
+          // Inicializar el NotificationService después de obtener el ownerId
+          await _initializeNotificationService(token, user.id);
         } else {
           debugPrint('[HomeController] currentUser o id es null');
         }
@@ -122,6 +80,67 @@ class HomeController with ChangeNotifier {
     } catch (e) {
       print("Error inicializando HomeController: $e");
     }
+  }
+
+  void _setupNotificationListener() {
+    _notificationService.addListener(_onCaregiverNotificationUpdate);
+  }
+
+  void _onCaregiverNotificationUpdate() {
+    _updateCaregiverMarkers();
+    notifyListeners(); // Notificar cambios para actualizar la UI
+  }
+
+  // Método para actualizar los marcadores de cuidadores en el mapa (mantenido para compatibilidad)
+  void _updateCaregiverMarkers() {
+    _caregiverMarkers.clear();
+
+    final nearbyCaregivers = _notificationService.nearbyCaregivers;
+    debugPrint('[HomeController] Actualizando marcadores: ${nearbyCaregivers.length} cuidadores cercanos');
+
+    for (final caregiver in nearbyCaregivers) {
+      final marker = Marker(
+        markerId: MarkerId('caregiver_${caregiver.id}'),
+        position: LatLng(caregiver.latitude, caregiver.longitude),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: InfoWindow(
+          title: caregiver.userName,
+          snippet: 'Cuidador disponible',
+          onTap: () => _onCaregiverMarkerTapped(caregiver),
+        ),
+      );
+      _caregiverMarkers.add(marker);
+    }
+    debugPrint('[HomeController] Marcadores actualizados: ${_caregiverMarkers.length} marcadores en el mapa');
+  }
+
+  // Método para manejar cuando se toca un marcador de cuidador
+  void _onCaregiverMarkerTapped(CaregiversNearbyResponse caregiver) {
+    selectCaregiver(caregiver);
+  }
+
+  // Nuevo método para seleccionar un cuidador desde las cards
+  void selectCaregiver(dynamic caregiver) {
+    selectedCaregiverNearby = caregiver;
+    debugPrint('Cuidador seleccionado: ${caregiver.userName}');
+
+    // Aquí puedes agregar lógica adicional como:
+    // - Mostrar un bottom sheet con detalles del cuidador
+    // - Navegar a una pantalla de detalles
+    // - Abrir un modal de reserva
+
+    notifyListeners();
+  }
+
+  // Getter para obtener la lista de cuidadores cercanos
+  List<CaregiversNearbyResponse> get nearbyCaregivers =>
+      _notificationService.nearbyCaregivers;
+
+  void clearNearbyCaregivers() {
+    _notificationService.clearNearbyCaregivers();
+    _caregiverMarkers.clear();
+    selectedCaregiverNearby = null;
+    notifyListeners();
   }
 
   // Cargar las mascotas del usuario desde el backend
@@ -141,6 +160,7 @@ class HomeController with ChangeNotifier {
       notifyListeners();
     }
   }
+
   PetService get petService => _petService;
 
   // Solicitar permisos de ubicación
@@ -158,28 +178,13 @@ class HomeController with ChangeNotifier {
       final status = await Permission.location.request();
 
       if (status.isGranted) {
-        final GoogleMapController controller = await mapController.future;
+        // Simular actualización de ubicación para buscar cuidadores cercanos
+        // En una implementación real, aquí obtendrías la ubicación GPS real
+        debugPrint('[HomeController] Actualizando ubicación y buscando cuidadores cercanos...');
 
-        controller.animateCamera(
-          CameraUpdate.newCameraPosition(
-            const CameraPosition(
-              target: LatLng(-12.0464, -77.0428),
-              zoom: 14.0,
-            ),
-          ),
-        );
+        // Aquí podrías llamar a un método para buscar cuidadores en la nueva ubicación
+        // await _searchCaregiversInLocation(newLatitude, newLongitude);
 
-        circles.clear();
-        circles.add(
-          Circle(
-            circleId: const CircleId('searchArea'),
-            center: const LatLng(-12.0464, -77.0428),
-            radius: 2000,
-            fillColor: Colors.blue.withOpacity(0.1),
-            strokeColor: Colors.blue.withOpacity(0.5),
-            strokeWidth: 2,
-          ),
-        );
         notifyListeners();
       }
     } catch (e) {
@@ -187,167 +192,20 @@ class HomeController with ChangeNotifier {
     }
   }
 
-  // Añadir marcadores para los cuidadores mock
-  void addMockMarkers() {
-    markers.clear();
-    for (var caregiver in mockCaregivers) {
-      markers.add(
-        Marker(
-          markerId: MarkerId(caregiver.id),
-          position: caregiver.location,
-          infoWindow: InfoWindow(
-            title: caregiver.name,
-            snippet: '${caregiver.rating} ★ - ${caregiver.distance} km',
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            caregiver.isOnline
-                ? BitmapDescriptor.hueGreen
-                : BitmapDescriptor.hueOrange,
-          ),
-          onTap: () {
-            selectCaregiver(caregiver);
-          },
-        ),
+  // Método para inicializar el NotificationService
+  Future<void> _initializeNotificationService(String authToken, String userId) async {
+    try {
+      _notificationService.initialize(
+        authToken: authToken,
+        userId: userId,
+        caregiverId: int.parse(userId),
+        serverUrl: 'http://10.0.2.2:5000/api/v1',
       );
+
+      debugPrint('[HomeController] NotificationService inicializado correctamente');
+    } catch (e) {
+      print('Error al inicializar servicio de notificaciones: $e');
     }
-    notifyListeners();
-  }
-
-  // Seleccionar un cuidador
-  void selectCaregiver(PetCaregiver caregiver) {
-    selectedCaregiver = caregiver;
-    showCaregiverDetails = true;
-    notifyListeners();
-
-    mapController.future.then((controller) {
-      controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: caregiver.location,
-            zoom: 15.0,
-          ),
-        ),
-      );
-    });
-  }
-
-  // Iniciar búsqueda de cuidadores
-  void startSearch() {
-    isSearching = true;
-    selectedCaregiver = null;
-    showCaregiverDetails = false;
-    markers.clear();
-    notifyListeners();
-
-    // Simular búsqueda durante 3 segundos
-    Future.delayed(const Duration(seconds: 3), () {
-      isSearching = false;
-      showCaregiversAnimated();
-    });
-  }
-
-  // Mostrar cuidadores animados
-  void showCaregiversAnimated() {
-    List<PetCaregiver> filteredCaregivers = mockCaregivers.where((caregiver) {
-      if (selectedServiceType == 'Paseo') {
-        return caregiver.specialties.contains('Paseos');
-      } else if (selectedServiceType == 'Visita a domicilio') {
-        return caregiver.specialties.contains('Cuidado a domicilio');
-      } else if (selectedServiceType == 'Entrenamiento') {
-        return caregiver.specialties.contains('Entrenamiento');
-      }
-      return true;
-    }).toList();
-
-    visibleCaregivers = filteredCaregivers;
-    notifyListeners();
-
-    for (int i = 0; i < filteredCaregivers.length; i++) {
-      Future.delayed(Duration(milliseconds: 300 * i), () {
-        addCaregiverMarker(filteredCaregivers[i]);
-      });
-    }
-
-    updateMapViewForResults(filteredCaregivers);
-  }
-
-  // Añadir marcador de cuidador
-  void addCaregiverMarker(PetCaregiver caregiver) {
-    markers.add(
-      Marker(
-        markerId: MarkerId(caregiver.id),
-        position: caregiver.location,
-        infoWindow: InfoWindow(
-          title: caregiver.name,
-          snippet: '${caregiver.rating} ★ - ${caregiver.distance} km',
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          caregiver.isOnline
-              ? BitmapDescriptor.hueGreen
-              : BitmapDescriptor.hueOrange,
-        ),
-        onTap: () {
-          selectCaregiver(caregiver);
-        },
-      ),
-    );
-    notifyListeners();
-  }
-
-  // Actualizar la vista del mapa para los resultados
-  void updateMapViewForResults(List<PetCaregiver> caregivers) {
-    if (caregivers.isEmpty) return;
-
-    mapController.future.then((controller) {
-      if (caregivers.length == 1) {
-        controller.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: caregivers.first.location,
-              zoom: 15.0,
-            ),
-          ),
-        );
-      } else {
-        controller.animateCamera(
-          CameraUpdate.newCameraPosition(
-            const CameraPosition(
-              target: LatLng(-12.0464, -77.0428),
-              zoom: 13.0,
-            ),
-          ),
-        );
-      }
-    });
-  }
-
-  // Enviar solicitud de servicio
-  void sendServiceRequest() {
-    showServiceForm = false;
-    notifyListeners();
-  }
-
-  // Mostrar formulario de solicitud de servicio
-  void showServiceRequestForm() {
-    showCaregiverDetails = false;
-    showServiceForm = true;
-    notifyListeners();
-  }
-
-  // Cerrar detalles de cuidador
-  void closeDetails() {
-    showCaregiverDetails = false;
-    notifyListeners();
-  }
-
-  // Manejo de favoritos
-  void toggleFavorite(PetCaregiver caregiver) {
-    if (favoriteCaregivers.contains(caregiver)) {
-      favoriteCaregivers.remove(caregiver);
-    } else {
-      favoriteCaregivers.add(caregiver);
-    }
-    notifyListeners();
   }
 
   // Cambiar tipo de servicio
@@ -362,42 +220,9 @@ class HomeController with ChangeNotifier {
     notifyListeners();
   }
 
-  // Actualizar fecha de servicio
-  void updateServiceDate(DateTime date) {
-    serviceDate = date;
-    notifyListeners();
-  }
-
-  // Actualizar hora de servicio
-  void updateServiceTime(TimeOfDay time) {
-    serviceTime = time;
-    notifyListeners();
-  }
-
-  // Actualizar duración de servicio
-  void updateServiceDuration(int duration) {
-    serviceDuration = duration;
-    notifyListeners();
-  }
-
-  // Calcular precio total
-  double calculateTotalPrice() {
-    return (servicePrice * serviceDuration / 60);
-  }
-
-  // Actualizar precio según tipo de servicio
-  void updateServicePrice(PetCaregiver caregiver, String serviceType) {
-    if (serviceType == 'Paseo') {
-      servicePrice = caregiver.price;
-    } else if (serviceType == 'Visita a domicilio') {
-      servicePrice = caregiver.price * 1.2;
-    } else if (serviceType == 'Cuidado nocturno') {
-      servicePrice = caregiver.price * 2;
-    } else if (serviceType == 'Entrenamiento') {
-      servicePrice = caregiver.price * 1.5;
-    } else {
-      servicePrice = caregiver.price * 1.8;
-    }
-    notifyListeners();
+  @override
+  void dispose() {
+    _notificationService.removeListener(_onCaregiverNotificationUpdate);
+    super.dispose();
   }
 }

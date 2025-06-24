@@ -1,4 +1,3 @@
-// models/create_pet_request.dart
 class CreatePetRequest {
   final String name;
   final String description;

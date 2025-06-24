@@ -1,9 +1,10 @@
 // controllers/add_pet_controller.dart
 import 'package:flutter/material.dart';
-import 'package:happyp/data/models/pet.dart';
-import 'package:happyp/data/models/create_pet_request.dart';
+import 'package:happyp/data/models/pet/species.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
+
+import '../../../../data/models/pet/create_pet_request.dart';
 
 class AddPetController extends ChangeNotifier {
   final PetService _petService = PetService();

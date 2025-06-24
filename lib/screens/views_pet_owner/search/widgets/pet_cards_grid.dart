@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
+import 'package:happyp/data/models/pet/species.dart';
 
 class PetCardsGrid extends StatelessWidget {
   final List<Pet> pets;

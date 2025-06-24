@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:happyp/data/models/pet.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/screens/views_pet_owner/search/service_request_screen.dart';

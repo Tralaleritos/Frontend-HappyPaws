@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:happyp/data/models/pet.dart';
-import 'package:happyp/data/models/user.dart';
+import 'package:happyp/data/models/pet/pet_model.dart';
+import 'package:happyp/data/models/user/user.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';

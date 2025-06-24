@@ -1,3 +1,5 @@
+import 'package:happyp/data/models/user/role.dart';
+
 class User {
   final String id; // Añadido campo para ID
   final String username;
@@ -76,29 +78,4 @@ class User {
       roles: extractedRoles,
     );
   }
-}
-
-// Clase que representa un rol en el sistema
-class Role {
-  final int id;
-  final String name;
-
-  Role({required this.id, required this.name});
-
-  factory Role.fromJson(Map<String, dynamic> json) {
-    return Role(
-      id: json['id'] ?? 0,
-      name: json['name'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-    };
-  }
-
-  @override
-  String toString() => 'Role(id: $id, name: $name)';
 }

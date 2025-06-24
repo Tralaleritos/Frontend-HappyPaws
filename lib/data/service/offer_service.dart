@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:happyp/data/models/offer.dart';
+import 'package:happyp/data/models/offers/offer.dart';
 import 'package:http/http.dart' as http;
 
 class OfferService {
@@ -30,7 +30,6 @@ class OfferService {
     );
     print('Status code: ${response.statusCode}');
     print('Response body: ${response.body}');
-
 
     if (response.statusCode == 201) {
       final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
