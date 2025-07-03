@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:http/http.dart' as http;
 
 class CaregiverAvailabilityService {
-  static const String _baseUrl = 'http://10.0.2.2:5000/api/v1';
+  final String _baseUrl = ApiConstants.BASE_URL; // 👈 Usar constante
   String? _authToken;
 
   void setAuthToken(String token) {

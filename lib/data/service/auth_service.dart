@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/user/role.dart';
 import 'package:happyp/data/models/user/user.dart';
 import 'package:happyp/data/service/user_service.dart';
@@ -12,7 +13,7 @@ class AuthService with ChangeNotifier {
   User? get currentUser => _currentUser;
 
   // URL de tu backend
-  final String _baseUrl = 'http://10.0.2.2:5000/api/v1/auth';
+  final String _baseUrl = ApiConstants.AUTH; // 👈 Usar constante
 
 
   // Función para registrar un nuevo usuario

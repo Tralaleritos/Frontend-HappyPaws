@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/service/notification_service.dart';
 import 'package:happyp/screens/views_caregiver/home/widgets/availability_toggle_widget.dart';
 import 'package:happyp/screens/views_caregiver/notificactions/notification_screen.dart';
@@ -95,7 +96,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
           authToken: _authToken!,
           userId: user.id.toString(),
           caregiverId: _currentCaregiverId!,
-          serverUrl: 'http://10.0.2.2:5000/api/v1',
+          serverUrl: ApiConstants.BASE_URL,
         );
 
         _notificationService.addListener(_onNotificationChanged);
@@ -149,7 +150,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
       MaterialPageRoute(
         builder: (context) => NotificationsScreen(
           caregiverId: _currentCaregiverId!, // Usar el ID real del cuidador
-          serverUrl: 'http://10.0.2.2:5000/api/v1',
+          serverUrl: ApiConstants.BASE_URL,
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:happyp/config/themes/colors/AppColors.dart';
 import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/screens/views_pet_owner/home/controllers/home_controller.dart';
 import 'package:happyp/screens/views_pet_owner/add_pet/add_pet_screen.dart';
+import 'package:happyp/screens/views_pet_owner/home/widgets/pet_detail_screen.dart';
 import 'package:provider/provider.dart';
 
 class PetSection extends StatelessWidget {
@@ -26,7 +27,7 @@ class PetSection extends StatelessWidget {
           if (index == controller.userPets.length) {
             return _buildAddPetButton(context, controller);
           } else {
-            return _buildPetCard(context, controller.userPets[index]);
+            return _buildPetCard(context, controller.userPets[index], controller);
           }
         },
       ),
@@ -111,8 +112,7 @@ class PetSection extends StatelessWidget {
     );
   }
 
-  Widget _buildPetCard(BuildContext context, Pet pet) {
-    final controller = Provider.of<HomeController>(context);
+  Widget _buildPetCard(BuildContext context, Pet pet, HomeController controller) {
     bool isSelected = controller.selectedPet?.id == pet.id;
 
     return Container(
@@ -121,43 +121,59 @@ class PetSection extends StatelessWidget {
         onTap: () {
           controller.selectPet(pet);
         },
-        child: Column(
-          children: [
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? AppColors.primary : Colors.transparent,
-                  width: 2,
+        onLongPress: () => _navigateToPetDetail(context, pet, controller),
+        child: GestureDetector(
+          onDoubleTap: () => _navigateToPetDetail(context, pet, controller),
+          child: Column(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? AppColors.primary : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(35),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  color: Colors.grey[200],
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.pets,
-                    size: 40,
-                    color: Colors.grey[600],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(35),
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    color: Colors.grey[200],
+                    alignment: Alignment.center,
+                    child: pet.imgUrl.isNotEmpty
+                        ? Image.network(
+                      pet.imgUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.pets,
+                          size: 40,
+                          color: Colors.grey[600],
+                        );
+                      },
+                    )
+                        : Icon(
+                      Icons.pets,
+                      size: 40,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              pet.name,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? AppColors.primary : Colors.black,
+              const SizedBox(height: 4),
+              Text(
+                pet.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? AppColors.primary : Colors.black,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -194,6 +210,41 @@ class PetSection extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Ocurrió un error al intentar agregar la mascota.')),
+      );
+    }
+  }
+
+  Future<void> _navigateToPetDetail(BuildContext context, Pet pet, HomeController controller) async {
+    try {
+      debugPrint('[PetDetail] Navegando a detalles de mascota: ${pet.name}');
+
+      // Usar el PetService que ya está configurado en el controller
+      final petService = controller.petService;
+
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PetDetailScreen(
+            pet: pet,
+            petService: petService,
+          ),
+        ),
+      );
+
+      debugPrint('[PetDetail] Resultado al regresar: $result');
+
+      // Si se eliminó o actualizó la mascota, recargar la lista
+      if (result == true) {
+        debugPrint('[PetDetail] Recargando mascotas...');
+        await controller.loadUserPets();
+      }
+    } catch (e, stack) {
+      debugPrint('[PetDetail] Error navegando a detalles: $e');
+      debugPrint('[PetDetail] StackTrace: $stack');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ocurrió un error al abrir los detalles de la mascota.'),
+        ),
       );
     }
   }

@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
@@ -199,7 +200,7 @@ class HomeController with ChangeNotifier {
         authToken: authToken,
         userId: userId,
         caregiverId: int.parse(userId),
-        serverUrl: 'http://10.0.2.2:5000/api/v1',
+        serverUrl: ApiConstants.BASE_URL,
       );
 
       debugPrint('[HomeController] NotificationService inicializado correctamente');

@@ -1,8 +1,8 @@
 
 class ApiConstants {
 
-  static const String BASE_URL = 'https://192.168.0.4:5000/api/v1';
-
+  static const String BASE_URL = 'https://backend-happypaws.onrender.com/api/v1';
+  static const String AUTH = 'https://backend-happypaws.onrender.com/api/v1/auth';
 
   static const String REGISTER = '/auth/signup';
   static const String VERIFY_CODE = '/auth/verify';

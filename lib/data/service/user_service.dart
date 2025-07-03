@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/user/user.dart';
 import 'package:http/http.dart' as http;
 
 class UserService {
-  final String _baseUrl = 'http://10.0.2.2:5000/api/v1';
+  final String _baseUrl = ApiConstants.BASE_URL; // 👈 Usar constante
   String? _token;
   void setAuthToken(String token) {
     _token = token;

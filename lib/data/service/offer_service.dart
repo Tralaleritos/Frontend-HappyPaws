@@ -1,10 +1,11 @@
 import 'dart:convert';
 
+import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/offers/offer.dart';
 import 'package:http/http.dart' as http;
 
 class OfferService {
-  final String _baseUrl = 'http://10.0.2.2:5000/api/v1'; // Ajusta si es necesario
+  final String _baseUrl = ApiConstants.BASE_URL; // 👈 Usar constante
   String? _token;
 
   // Establecer el token
