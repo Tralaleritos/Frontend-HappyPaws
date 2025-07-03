@@ -9,14 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService with ChangeNotifier {
   User? _currentUser;
+  final UserService _userService = UserService();
 
   User? get currentUser => _currentUser;
 
-  // URL de tu backend
-  final String _baseUrl = ApiConstants.AUTH; // 👈 Usar constante
+  final String _baseUrl = ApiConstants.AUTH;
 
-
-  // Función para registrar un nuevo usuario
+  /// Registrar un nuevo usuario
+  /// Endpoint: POST /auth/signup
   Future<bool> register(String name, String email, String password, String phone, String role) async {
     try {
       final url = Uri.parse('$_baseUrl/signup');
@@ -35,49 +35,21 @@ class AuthService with ChangeNotifier {
         }),
       );
 
-      // Para depuración - imprimir la respuesta
       print('Respuesta registro: ${response.statusCode}');
       print('Cuerpo de respuesta registro: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final responseData = json.decode(response.body);
-
-        // Para depuración - imprimir el JSON decodificado
-        print('JSON decodificado registro:');
-        final encoder = JsonEncoder.withIndent('  ');
-        print(encoder.convert(responseData));
-
-        // Verificar diferentes tipos de respuesta exitosa
-        if (responseData['token'] != null) {
-          // Si el registro devuelve un token, guardar y extraer usuario
-          await _saveToken(responseData['token']);
-          _extractUserFromToken(responseData['token']);
-          return true;
-        } else if (responseData['user'] != null) {
-          // Si el registro devuelve un objeto de usuario directamente
-          _currentUser = User.fromJson(responseData['user']);
-          return true;
-        } else if (responseData['message'] != null || responseData['success'] == true) {
-          // Si el registro devuelve solo un mensaje de éxito
-          return true;
-        } else if (responseData.containsKey('id') || responseData.containsKey('email')) {
-          // Si la respuesta contiene datos del usuario directamente
-          return true;
-        } else {
-          // Cualquier respuesta 200/201 se considera exitosa
-          return true;
-        }
+        print('Registro exitoso: ${responseData.toString()}');
+        return true;
       } else if (response.statusCode == 400) {
-        // Error de validación o usuario ya existe
         final responseData = json.decode(response.body);
-        print('Error 400: ${responseData['message'] ?? 'Error de validación'}');
+        print('Error 400: ${responseData.toString()}');
         return false;
       } else if (response.statusCode == 409) {
-        // Conflicto - usuario ya existe
         print('Error 409: Usuario ya existe');
         return false;
       } else {
-        // Otros errores del servidor
         print('Error del servidor: ${response.statusCode}');
         return false;
       }
@@ -87,6 +59,8 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  /// Iniciar sesión
+  /// Endpoint: POST /auth/login
   Future<bool> login(String email, String password) async {
     try {
       final response = await http.post(
@@ -98,32 +72,26 @@ class AuthService with ChangeNotifier {
         }),
       );
 
-      // Para depuración
-      print('Respuesta API: ${response.statusCode}');
-      print('Cuerpo de respuesta: ${response.body}');
+      print('Respuesta login: ${response.statusCode}');
+      print('Cuerpo de respuesta login: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
 
-        // Para depuración
-        print('JSON decodificado:');
-        final encoder = JsonEncoder.withIndent('  ');
-        print(encoder.convert(responseData));
-
-        // Verificar si hay un token en la respuesta
         if (responseData['token'] != null) {
           final String token = responseData['token'];
 
-          // Guardar el token en SharedPreferences
+          // Guardar el token
           await _saveToken(token);
 
-          // Extraer datos del usuario del token JWT
-          bool success = _extractUserFromToken(token);
+          // Configurar el token en UserService
+          _userService.setAuthToken(token);
 
-          if (success) {
-            notifyListeners();
-            return true;
-          }
+          // Obtener información completa del usuario desde el endpoint /users/me
+          await _fetchUserInfo();
+
+          notifyListeners();
+          return true;
         }
       }
 
@@ -134,77 +102,12 @@ class AuthService with ChangeNotifier {
     }
   }
 
-  // Método para guardar el token en SharedPreferences
-  Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
-    print('Token guardado en SharedPreferences');
-  }
-
-  // Método para extraer información del usuario del token JWT
-  bool _extractUserFromToken(String token) {
-    try {
-      // El token JWT tiene tres partes separadas por puntos
-      final parts = token.split('.');
-      if (parts.length != 3) {
-        print('Formato de token inválido');
-        return false;
-      }
-
-      // Decodificar la parte del payload (segunda parte)
-      String payload = parts[1];
-
-      // Ajustar la longitud para que sea múltiplo de 4
-      while (payload.length % 4 != 0) {
-        payload += '=';
-      }
-
-      // Decodificar el payload de base64
-      final normalized = base64Url.normalize(payload);
-      final decodedPayload = utf8.decode(base64Url.decode(normalized));
-      final payloadMap = json.decode(decodedPayload);
-
-      print('Payload decodificado: $payloadMap');
-
-      // Extraer información del usuario del payload
-      final String email = payloadMap['sub'] ?? '';
-      List<String> roleNames = [];
-
-      // Extraer roles del token
-      if (payloadMap['ROLES'] != null && payloadMap['ROLES'] is List) {
-        roleNames = List<String>.from(payloadMap['ROLES']);
-      }
-
-      // Crear lista de roles a partir de los nombres
-      List<Role> roles = roleNames.asMap().entries.map((entry) {
-        return Role(id: entry.key + 1, name: entry.value);
-      }).toList();
-
-      // Crear usuario con la información extraída
-      _currentUser = User(
-        id: '',
-        username: email.split('@').first, // Usar la parte del email antes de @ como username
-        email: email,
-        password: '', // No guardamos la contraseña
-        phoneNumber: '', // No hay número de teléfono en el token
-        roles: roles,
-      );
-
-      print('Usuario extraído del token:');
-      print('- Email: ${_currentUser?.email}');
-      print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
-      print('- Id: ${_currentUser?.id}');
-
-      return true;
-    } catch (e) {
-      print('Error al decodificar el token: $e');
-      return false;
-    }
-  }
+  /// Verificar código de verificación
+  /// Endpoint: POST /auth/verify
   Future<bool> verifyCode(String email, String code) async {
-    final url = Uri.parse('$_baseUrl/verify');
-
     try {
+      final url = Uri.parse('$_baseUrl/verify');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -223,10 +126,12 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  /// Reenviar código de verificación
+  /// Endpoint: POST /auth/resend
   Future<bool> resendCode(String email) async {
-    final url = Uri.parse('$_baseUrl/resend?email=$email');
-
     try {
+      final url = Uri.parse('$_baseUrl/resend?email=$email');
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -241,36 +146,152 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  /// Actualizar información del usuario
+  Future<bool> updateUser({
+    String? username,
+    String? email,
+    String? phoneNumber,
+    String? imgUrl,
+  }) async {
+    if (_currentUser == null) {
+      print('No hay usuario autenticado');
+      return false;
+    }
 
+    try {
+      final success = await _userService.updateUser(
+        userId: _currentUser!.id,
+        username: username,
+        email: email,
+        phoneNumber: phoneNumber,
+        imgUrl: imgUrl,
+      );
 
-  // Método para verificar si el usuario tiene un rol específico
+      if (success) {
+        // Actualizar la información del usuario local
+        await _fetchUserInfo();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error al actualizar usuario: $e');
+      return false;
+    }
+  }
+
+  /// Actualizar ubicación del usuario (solo para OWNER)
+  Future<bool> updateUserLocation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (_currentUser == null) {
+      print('No hay usuario autenticado');
+      return false;
+    }
+
+    try {
+      final success = await _userService.updateUserLocation(
+        userId: _currentUser!.id,
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      if (success) {
+        // Actualizar la información del usuario local
+        await _fetchUserInfo();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error al actualizar ubicación: $e');
+      return false;
+    }
+  }
+
+  /// Obtener información completa del usuario desde el backend
+  Future<void> _fetchUserInfo() async {
+    try {
+      final user = await _userService.getUser();
+      if (user != null) {
+        _currentUser = user;
+        print('Usuario actualizado desde backend:');
+        print('- ID: ${_currentUser?.id}');
+        print('- Email: ${_currentUser?.email}');
+        print('- Username: ${_currentUser?.username}');
+        print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error al obtener información del usuario: $e');
+    }
+  }
+
+  /// Guardar token en SharedPreferences
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    print('Token guardado en SharedPreferences');
+  }
+
+  /// Verificar si el usuario tiene un rol específico
   bool hasRole(String roleName) {
     if (_currentUser == null) return false;
     return _currentUser!.hasRole(roleName);
   }
 
-  // Obtener el rol principal como string
+  /// Obtener el rol principal como string
   String? get userRole {
     return _currentUser?.role;
   }
 
-  // Función para cerrar sesión
+  /// Cerrar sesión
   Future<void> logout() async {
-    // Elimina el token de SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    prefs.remove('token');
+    try {
+      // Eliminar el token de SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
 
-    _currentUser = null;
-    notifyListeners();
+      // Limpiar el token del UserService
+      _userService.clearAuthToken();
+
+      // Limpiar el usuario actual
+      _currentUser = null;
+
+      notifyListeners();
+      print('Sesión cerrada exitosamente');
+    } catch (e) {
+      print('Error al cerrar sesión: $e');
+    }
   }
 
-  // Función para obtener el token desde SharedPreferences
+  /// Obtener token desde SharedPreferences
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
   }
 
-  // Función para hacer solicitudes autenticadas
+  /// Función para auto-login al iniciar la aplicación
+  Future<bool> autoLogin() async {
+    try {
+      final token = await getToken();
+      if (token != null) {
+        // Configurar el token en UserService
+        _userService.setAuthToken(token);
+
+        // Obtener información del usuario desde el backend
+        await _fetchUserInfo();
+
+        return _currentUser != null;
+      }
+      return false;
+    } catch (e) {
+      print('Error en auto-login: $e');
+      return false;
+    }
+  }
+
+  /// Hacer solicitudes autenticadas (método legacy para compatibilidad)
+  @deprecated
   Future<http.Response> makeAuthenticatedRequest(String endpoint) async {
     String? token = await getToken();
 
@@ -290,37 +311,9 @@ class AuthService with ChangeNotifier {
     return response;
   }
 
-  // Actualizar el ID del usuario usando UserService
+  /// Actualizar el ID del usuario (método legacy para compatibilidad)
+  @deprecated
   Future<void> fetchAndSetUserId(UserService userService) async {
-    try {
-      final token = await getToken();
-      if (token == null) return;
-
-      userService.setAuthToken(token);
-      final userWithId = await userService.getUser();
-
-      if (_currentUser != null && userWithId != null) {
-        _currentUser = _currentUser!.copyWith(id: userWithId.id);
-        notifyListeners(); // Notificar cambio
-        print('ID del usuario actualizado: ${_currentUser?.id}');
-        print('Usuario extraído del token:');
-        print('- Email: ${_currentUser?.email}');
-        print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
-        print('- Id: ${_currentUser?.id}');
-
-      }
-    } catch (e) {
-      print('Error al actualizar el ID del usuario: $e');
-    }
+    await _fetchUserInfo();
   }
-
-  // Función para verificar si hay un token guardado y cargar los datos del usuario
-  Future<bool> autoLogin() async {
-    final token = await getToken();
-    if (token != null) {
-      return _extractUserFromToken(token);
-    }
-    return false;
-  }
-
 }

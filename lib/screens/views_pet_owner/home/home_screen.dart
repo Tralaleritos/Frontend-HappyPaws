@@ -7,15 +7,41 @@ import 'package:happyp/screens/views_pet_owner/home/controllers/home_controller.
 import 'package:happyp/screens/views_pet_owner/home/widgets/pet_section.dart';
 import 'package:provider/provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  HomeController? _controller;
+  bool _hasCalledOnHomeAppear = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Llamar onHomeAppear cuando el widget aparece por primera vez
+    if (!_hasCalledOnHomeAppear) {
+      _hasCalledOnHomeAppear = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller != null) {
+          _controller!.onHomeAppear();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
 
     return ChangeNotifierProvider(
-      create: (_) => HomeController(authService),
+      create: (_) {
+        _controller = HomeController(authService);
+        return _controller!;
+      },
       child: const _HomeScreenContent(),
     );
   }
