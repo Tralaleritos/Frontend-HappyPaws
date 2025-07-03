@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
+import 'package:happyp/data/models/offers/offer.dart';
+import 'package:happyp/data/service/service_type_service.dart';
+import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/screens/views_pet_owner/search/widgets/carousel_ads.dart';
 import 'package:happyp/screens/views_pet_owner/search/widgets/pet_cards_grid.dart';
 import 'package:happyp/screens/views_pet_owner/search/widgets/service_cards_row.dart';
+import 'package:provider/provider.dart';
+
 import 'controllers/pet_search_controller.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -29,15 +34,39 @@ class _SearchScreenState extends State<SearchScreen> {
     'assets/images/banners/cuid9.jpg',
   ];
 
+  List<ServiceType> _availableServices = [];
+  bool _loadingServices = true;
+
   @override
   void initState() {
     super.initState();
     _controller = PetSearchController(context);
 
-    // Inicializar y cargar mascotas
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.initializeService();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _controller.initializeService();
+      await _loadAvailableServices();
     });
+  }
+
+  Future<void> _loadAvailableServices() async {
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final token = await authService.getToken();
+      final service = ServiceTypeService();
+      if (token != null) {
+        service.setAuthToken(token);
+        final result = await service.getAllServiceTypes();
+        setState(() {
+          _availableServices = result;
+          _loadingServices = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al cargar servicios: $e');
+      setState(() {
+        _loadingServices = false;
+      });
+    }
   }
 
   @override
@@ -117,11 +146,16 @@ class _SearchScreenState extends State<SearchScreen> {
                 const SizedBox(height: 7),
                 CarouselAds(bannerImages: _bannerImages),
                 const SizedBox(height: 15),
-                ServiceCardsRow(
+                _loadingServices
+                    ? const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+                    : ServiceCardsRow(
+                  services: _availableServices,
                   selectedService: _controller.selectedService,
                   onServiceSelected: _controller.updateSelectedService,
-                  onAddPetPressed: (service) =>
-                      _controller.navigateToAddService(context, service),
+                  onAddPetPressed: (service) => _controller.navigateToAddService(context, service),
                 ),
                 const SizedBox(height: 16),
                 Padding(
