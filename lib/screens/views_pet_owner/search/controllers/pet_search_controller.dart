@@ -4,6 +4,9 @@ import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/screens/views_pet_owner/search/service_request_screen.dart';
 
+import 'package:happyp/screens/views_pet_owner/home/widgets/pet_detail_screen.dart';
+
+
 import 'package:provider/provider.dart';
 
 class PetSearchController extends ChangeNotifier {
@@ -151,14 +154,23 @@ class PetSearchController extends ChangeNotifier {
   }
 
   // Navegar a detalle de mascota
-  void navigateToPetDetail(BuildContext context, Pet pet) {
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (context) => PetDetailsScreen(pet: pet),
-    //   ),
-    // );
+  void navigateToPetDetail(BuildContext context, Pet pet) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PetDetailScreen(
+          pet: pet,
+          petService: _petService,
+        ),
+      ),
+    );
+
+    // Si result == true, significa que hubo cambios
+    if (result == true) {
+      await loadAllPets();
+    }
   }
+
 
   @override
   void dispose() {
