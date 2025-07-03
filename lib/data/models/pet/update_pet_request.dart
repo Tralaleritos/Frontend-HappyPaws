@@ -1,8 +1,10 @@
+import 'package:happyp/data/models/pet/species.dart';
+
 class UpdatePetRequest {
   final int id;
   final String name;
   final String description;
-  final String species; // Species se tratará como String en JSON
+  final Species species; // Ahora usa el modelo Species
   final String breed;
   final int age;
   final String imgUrl;
@@ -22,7 +24,7 @@ class UpdatePetRequest {
       'id': id,
       'name': name,
       'description': description,
-      'species': species,
+      'species': species.value, // Convierte Species a String para JSON
       'breed': breed,
       'age': age,
       'imgUrl': imgUrl,

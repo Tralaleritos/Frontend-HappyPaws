@@ -1,4 +1,3 @@
-// pet_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
 import 'package:happyp/data/models/pet/pet_model.dart';
@@ -25,6 +24,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   bool _isLoading = false;
   bool _isDeleting = false;
   late Pet _currentPet;
+  bool _hasChanges = false; // Flag para saber si hubo cambios
 
   // Controllers para los campos de edición
   final _nameController = TextEditingController();
@@ -72,7 +72,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         id: _currentPet.id,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
-        species: _selectedSpecies.value,
+        species: _selectedSpecies, // Ahora usa Species directamente
         breed: _breedController.text.trim(),
         age: int.parse(_ageController.text.trim()),
         imgUrl: _imgUrlController.text.trim(),
@@ -91,6 +91,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           imgUrl: _imgUrlController.text.trim(),
         );
         _isEditing = false;
+        _hasChanges = true; // Marcar que hubo cambios
       });
 
       _showSnackBar('Mascota actualizada exitosamente', Colors.green);
@@ -187,58 +188,71 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     });
   }
 
+  // Método para manejar el regreso a la pantalla anterior
+  Future<bool> _onWillPop() async {
+    Navigator.of(context).pop(_hasChanges);
+    return false; // Prevenir el pop automático
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(_currentPet.name),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0.5,
-        actions: [
-          if (!_isEditing && !_isLoading && !_isDeleting)
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-            ),
-          if (!_isEditing && !_isLoading && !_isDeleting)
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: _deletePet,
-            ),
-        ],
-      ),
-      body: _isDeleting
-          ? const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Eliminando mascota...'),
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: Text(_currentPet.name),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0.5,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => _onWillPop(),
+          ),
+          actions: [
+            if (!_isEditing && !_isLoading && !_isDeleting)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () {
+                  setState(() {
+                    _isEditing = true;
+                  });
+                },
+              ),
+            if (!_isEditing && !_isLoading && !_isDeleting)
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: _deletePet,
+              ),
           ],
         ),
-      )
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Imagen de la mascota
-            _buildPetImage(),
-            const SizedBox(height: 24),
+        body: _isDeleting
+            ? const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Eliminando mascota...'),
+            ],
+          ),
+        )
+            : SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Imagen de la mascota
+              _buildPetImage(),
+              const SizedBox(height: 24),
 
-            // Información básica
-            _buildInfoSection(),
+              // Información básica
+              _buildInfoSection(),
 
-            // Botones de acción si está editando
-            if (_isEditing) _buildActionButtons(),
-          ],
+              // Botones de acción si está editando
+              if (_isEditing) _buildActionButtons(),
+            ],
+          ),
         ),
       ),
     );
