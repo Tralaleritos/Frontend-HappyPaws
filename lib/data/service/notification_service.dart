@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:stomp_dart_client/stomp.dart';
 import 'package:stomp_dart_client/stomp_config.dart';
@@ -6,6 +7,7 @@ import 'package:stomp_dart_client/stomp_frame.dart';
 
 import '../models/notifications/caregiver_nearby_response.dart';
 import '../models/notifications/offer_response.dart';
+
 class NotificationService extends ChangeNotifier {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -21,6 +23,20 @@ class NotificationService extends ChangeNotifier {
   int? _caregiverId;
   String? _serverUrl;
   List<CaregiversNearbyResponse> _nearbyCaregivers = [];
+
+  // OPTIMIZACIÓN: Control de actualizaciones en batch
+  Timer? _batchUpdateTimer;
+  final Set<int> _pendingUpdates = {};
+  final Set<int> _pendingRemovals = {};
+
+  // OPTIMIZACIÓN: Control de reconexión automática
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
+  static const Duration _reconnectDelay = Duration(seconds: 2);
+
+  // OPTIMIZACIÓN: Cache de datos para evitar búsquedas repetitivas
+  final Map<int, CaregiversNearbyResponse> _caregiverCache = {};
 
   List<OfferResponse> get notifications => List.unmodifiable(_notifications);
   int get unreadCount => _unreadCount;
@@ -49,7 +65,7 @@ class NotificationService extends ChangeNotifier {
 
     _stompClient?.deactivate();
     final wsUrl = '$_serverUrl/happy';
-    debugPrint('Conectando a WebSocket: $wsUrl');
+    debugPrint('[NotificationService] Conectando a WebSocket: $wsUrl');
 
     _stompClient = StompClient(
         config: StompConfig.SockJS(
@@ -57,24 +73,27 @@ class NotificationService extends ChangeNotifier {
             onConnect: _onConnect,
             beforeConnect: () async {
               _updateConnectionStatus('Conectando...');
-              debugPrint('Iniciando conexión WebSocket...');
+              debugPrint('[NotificationService] Iniciando conexión WebSocket...');
             },
             onWebSocketError: (error) {
               _updateConnectionStatus('Error de WebSocket');
               _isConnected = false;
-              debugPrint('Error de WebSocket: $error');
+              debugPrint('[NotificationService] Error de WebSocket: $error');
+              _scheduleReconnect();
               notifyListeners();
             },
             onStompError: (frame) {
               _updateConnectionStatus('Error STOMP');
               _isConnected = false;
-              debugPrint('Error STOMP: ${frame.body}');
+              debugPrint('[NotificationService] Error STOMP: ${frame.body}');
+              _scheduleReconnect();
               notifyListeners();
             },
             onDisconnect: (frame) {
               _updateConnectionStatus('Desconectado');
               _isConnected = false;
-              debugPrint('Desconectado del WebSocket');
+              debugPrint('[NotificationService] Desconectado del WebSocket');
+              _scheduleReconnect();
               notifyListeners();
             },
             webSocketConnectHeaders: {
@@ -93,13 +112,14 @@ class NotificationService extends ChangeNotifier {
 
   void _onConnect(StompFrame frame) {
     _isConnected = true;
+    _reconnectAttempts = 0; // Reset contador de reconexión
     _updateConnectionStatus('Conectado');
 
     final caregiverTopic = '/topic/offers/$_caregiverId';
     final ownerTopic = '/topic/notifications/$_userId';
 
-    debugPrint('Conectado al WebSocket, suscribiéndose a: $caregiverTopic');
-    debugPrint('Conectado al WebSocket, suscribiéndose a: $ownerTopic');
+    debugPrint('[NotificationService] Conectado, suscribiéndose a: $caregiverTopic');
+    debugPrint('[NotificationService] Conectado, suscribiéndose a: $ownerTopic');
 
     _stompClient!.subscribe(
         destination: caregiverTopic,
@@ -119,98 +139,174 @@ class NotificationService extends ChangeNotifier {
         callback: _onCaregiverNotificationReceived
     );
 
-    debugPrint('Suscripción completada exitosamente');
+    debugPrint('[NotificationService] Suscripción completada exitosamente');
     notifyListeners();
   }
 
+  // OPTIMIZACIÓN: Programar reconexión automática
+  void _scheduleReconnect() {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      debugPrint('[NotificationService] Máximo de intentos de reconexión alcanzado');
+      return;
+    }
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(_reconnectDelay, () {
+      _reconnectAttempts++;
+      debugPrint('[NotificationService] Intento de reconexión ${_reconnectAttempts}/${_maxReconnectAttempts}');
+      _connectToWebSocket();
+    });
+  }
+
+  // OPTIMIZACIÓN: Procesamiento en batch de notificaciones
   void _onCaregiverNotificationReceived(StompFrame frame) {
-    debugPrint('Mensaje de notificación recibido: ${frame.body}');
+    debugPrint('[NotificationService] Mensaje de notificación recibido: ${frame.body}');
     if (frame.body != null) {
       try {
         final data = json.decode(frame.body!);
+        final caregiverId = data['caregiverId'] as int?;
 
-        // Verificar si es un mensaje de cuidador no disponible
-        if (data['type'] == 'CAREGIVER_UNAVAILABLE') {
-          final caregiverId = data['caregiverId'];
-          _removeCaregiverFromList(caregiverId);
-          debugPrint('Cuidador $caregiverId removido de la lista por no disponibilidad');
-        } else if (data['type'] == 'CAREGIVER_AVAILABLE') {
-          // Es un cuidador disponible (mensaje normal)
-          final caregiver = CaregiversNearbyResponse.fromJson(data);
-          debugPrint('Cuidador parseado: $caregiver');
-
-          // Verificar si el cuidador ya existe en la lista para evitar duplicados
-          // Usar caregiverId del JSON en lugar del id del objeto parseado
-          final caregiverId = data['caregiverId'];
-          final existingIndex = _nearbyCaregivers.indexWhere((c) => c.id == caregiverId);
-
-          if (existingIndex == -1) {
-            // Crear una nueva instancia con el ID correcto
-            final updatedCaregiver = CaregiversNearbyResponse(
-              id: caregiverId,
-              userName: caregiver.userName,
-              imgUrl: caregiver.imgUrl,
-              latitude: caregiver.latitude,
-              longitude: caregiver.longitude,
-            );
-            _nearbyCaregivers.insert(0, updatedCaregiver);
-            debugPrint('Nuevo cuidador agregado: ${updatedCaregiver.userName} (ID: $caregiverId)');
-          } else {
-            // Actualizar la información del cuidador existente
-            final updatedCaregiver = CaregiversNearbyResponse(
-              id: caregiverId,
-              userName: caregiver.userName,
-              imgUrl: caregiver.imgUrl,
-              latitude: caregiver.latitude,
-              longitude: caregiver.longitude,
-            );
-            _nearbyCaregivers[existingIndex] = updatedCaregiver;
-            debugPrint('Cuidador actualizado: ${updatedCaregiver.userName} (ID: $caregiverId)');
-          }
+        if (caregiverId == null) {
+          debugPrint('[NotificationService] CaregiverId no válido en el mensaje');
+          return;
         }
 
-        notifyListeners();
+        if (data['type'] == 'CAREGIVER_UNAVAILABLE') {
+          debugPrint('[NotificationService] Cuidador $caregiverId marcado como no disponible');
+          _pendingRemovals.add(caregiverId);
+          _scheduleBatchUpdate();
+        } else if (data['type'] == 'CAREGIVER_AVAILABLE') {
+          debugPrint('[NotificationService] Cuidador $caregiverId disponible');
+          _pendingUpdates.add(caregiverId);
+          _updateCaregiverData(data);
+          _scheduleBatchUpdate();
+        }
       } catch (e) {
-        debugPrint('Error al procesar notificación de cuidador: $e');
+        debugPrint('[NotificationService] Error al procesar notificación: $e');
       }
     }
   }
 
+  // OPTIMIZACIÓN: Actualizar datos del cuidador de forma inmediata
+  void _updateCaregiverData(Map<String, dynamic> data) {
+    try {
+      final caregiverId = data['caregiverId'] as int;
+      final caregiver = CaregiversNearbyResponse.fromJson(data);
+
+      // Crear nueva instancia con el ID correcto
+      final updatedCaregiver = CaregiversNearbyResponse(
+        id: caregiverId,
+        userName: caregiver.userName,
+        imgUrl: caregiver.imgUrl,
+        latitude: caregiver.latitude,
+        longitude: caregiver.longitude,
+      );
+
+      // OPTIMIZACIÓN: Usar cache para búsquedas más rápidas
+      final existingIndex = _caregiverCache.containsKey(caregiverId)
+          ? _nearbyCaregivers.indexWhere((c) => c.id == caregiverId)
+          : -1;
+
+      if (existingIndex == -1) {
+        _nearbyCaregivers.insert(0, updatedCaregiver);
+        _caregiverCache[caregiverId] = updatedCaregiver;
+        debugPrint('[NotificationService] Nuevo cuidador agregado: ${updatedCaregiver.userName} (ID: $caregiverId)');
+      } else {
+        _nearbyCaregivers[existingIndex] = updatedCaregiver;
+        _caregiverCache[caregiverId] = updatedCaregiver;
+        debugPrint('[NotificationService] Cuidador actualizado: ${updatedCaregiver.userName} (ID: $caregiverId)');
+      }
+    } catch (e) {
+      debugPrint('[NotificationService] Error actualizando datos del cuidador: $e');
+    }
+  }
+
+  // OPTIMIZACIÓN: Programar actualizaciones en batch
+  void _scheduleBatchUpdate() {
+    _batchUpdateTimer?.cancel();
+    _batchUpdateTimer = Timer(const Duration(milliseconds: 50), () {
+      _processBatchUpdates();
+    });
+  }
+
+  // OPTIMIZACIÓN: Procesar actualizaciones en batch
+  void _processBatchUpdates() {
+    bool hasChanges = false;
+
+    // Procesar remociones
+    if (_pendingRemovals.isNotEmpty) {
+      for (final caregiverId in _pendingRemovals) {
+        _removeCaregiverFromListOptimized(caregiverId);
+      }
+      _pendingRemovals.clear();
+      hasChanges = true;
+    }
+
+    // Procesar actualizaciones (ya procesadas en _updateCaregiverData)
+    if (_pendingUpdates.isNotEmpty) {
+      _pendingUpdates.clear();
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      debugPrint('[NotificationService] Batch update procesado, notificando listeners');
+      notifyListeners();
+    }
+  }
+
+  // OPTIMIZACIÓN: Versión optimizada de remoción usando cache
+  void _removeCaregiverFromListOptimized(int caregiverId) {
+    if (_caregiverCache.containsKey(caregiverId)) {
+      final initialLength = _nearbyCaregivers.length;
+      _nearbyCaregivers.removeWhere((caregiver) => caregiver.id == caregiverId);
+      _caregiverCache.remove(caregiverId);
+
+      final removedCount = initialLength - _nearbyCaregivers.length;
+      if (removedCount > 0) {
+        debugPrint('[NotificationService] Removidos $removedCount cuidador(es) con ID: $caregiverId');
+      }
+    } else {
+      debugPrint('[NotificationService] No se encontró cuidador con ID: $caregiverId en cache');
+    }
+  }
+
+  // Método legacy mantenido para compatibilidad
   void _removeCaregiverFromList(int caregiverId) {
     final initialLength = _nearbyCaregivers.length;
     _nearbyCaregivers.removeWhere((caregiver) => caregiver.id == caregiverId);
+    _caregiverCache.remove(caregiverId);
     final removedCount = initialLength - _nearbyCaregivers.length;
 
     if (removedCount > 0) {
-      debugPrint('Removidos $removedCount cuidador(es) con ID: $caregiverId');
+      debugPrint('[NotificationService] Removidos $removedCount cuidador(es) con ID: $caregiverId');
     } else {
-      debugPrint('No se encontró cuidador con ID: $caregiverId para remover');
+      debugPrint('[NotificationService] No se encontró cuidador con ID: $caregiverId para remover');
     }
   }
 
   void _onOfferReceived(StompFrame frame) {
-    debugPrint('¡Mensaje recibido del WebSocket!');
-    debugPrint('Contenido del frame: ${frame.body}');
+    debugPrint('[NotificationService] ¡Mensaje de oferta recibido!');
+    debugPrint('[NotificationService] Contenido del frame: ${frame.body}');
 
     if (frame.body != null) {
       try {
         final data = json.decode(frame.body!);
-        debugPrint('Datos JSON parseados: $data');
+        debugPrint('[NotificationService] Datos JSON parseados: $data');
 
         final offer = OfferResponse.fromJson(data);
-        debugPrint('OfferResponse creada: ID=${offer.id}, Descripción=${offer.description}');
+        debugPrint('[NotificationService] OfferResponse creada: ID=${offer.id}, Descripción=${offer.description}');
 
         _notifications.insert(0, offer);
         _unreadCount++;
 
-        debugPrint('Notificación añadida a la lista. Total no leídas: $_unreadCount');
+        debugPrint('[NotificationService] Notificación añadida a la lista. Total no leídas: $_unreadCount');
         notifyListeners();
       } catch (e) {
-        debugPrint('ERROR al procesar la notificación: $e');
-        debugPrint('Datos del frame: ${frame.body}');
+        debugPrint('[NotificationService] ERROR al procesar la notificación: $e');
+        debugPrint('[NotificationService] Datos del frame: ${frame.body}');
       }
     } else {
-      debugPrint('ERROR: Frame recibido sin contenido');
+      debugPrint('[NotificationService] ERROR: Frame recibido sin contenido');
     }
   }
 
@@ -232,6 +328,7 @@ class NotificationService extends ChangeNotifier {
 
   void clearNearbyCaregivers() {
     _nearbyCaregivers.clear();
+    _caregiverCache.clear(); // OPTIMIZACIÓN: Limpiar también el cache
     notifyListeners();
   }
 
@@ -259,12 +356,13 @@ class NotificationService extends ChangeNotifier {
           }
       );
 
-      debugPrint('Mensaje de aceptación enviado para oferta ${offer.id}');
+      debugPrint('[NotificationService] Mensaje de aceptación enviado para oferta ${offer.id}');
     }
   }
 
   void reconnect() {
-    debugPrint('Reconectando...');
+    debugPrint('[NotificationService] Reconectando manualmente...');
+    _reconnectAttempts = 0; // Reset contador para reconexión manual
     if (_authToken != null && _userId != null && _caregiverId != null && _serverUrl != null) {
       _connectToWebSocket();
     }
@@ -274,12 +372,19 @@ class NotificationService extends ChangeNotifier {
     _stompClient?.deactivate();
     _stompClient = null;
     _isConnected = false;
+    _reconnectTimer?.cancel(); // OPTIMIZACIÓN: Cancelar timer de reconexión
+    _batchUpdateTimer?.cancel(); // OPTIMIZACIÓN: Cancelar timer de batch update
     _updateConnectionStatus('Desconectado');
-    debugPrint('Servicio de notificaciones desconectado');
+    debugPrint('[NotificationService] Servicio de notificaciones desconectado');
   }
 
   @override
   void dispose() {
+    _reconnectTimer?.cancel();
+    _batchUpdateTimer?.cancel();
+    _caregiverCache.clear();
+    _pendingUpdates.clear();
+    _pendingRemovals.clear();
     disconnect();
     super.dispose();
   }
