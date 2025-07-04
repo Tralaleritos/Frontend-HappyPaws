@@ -155,7 +155,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   services: _availableServices,
                   selectedService: _controller.selectedService,
                   onServiceSelected: _controller.updateSelectedService,
-                  onAddPetPressed: (service) => _controller.navigateToAddService(context, service),
+                  onAddPetPressed: (serviceType) =>
+                      _controller.navigateToAddService(context, serviceType.id, serviceType.name),
+
                 ),
                 const SizedBox(height: 16),
                 Padding(

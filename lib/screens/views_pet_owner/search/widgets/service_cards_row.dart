@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
-import 'package:happyp/data/models/offers/offer.dart'; // ← Asegúrate que aquí está ServiceType
+import 'package:happyp/data/models/offers/offer.dart';
 
 class ServiceCardsRow extends StatelessWidget {
   final List<ServiceType> services;
   final String selectedService;
   final Function(String) onServiceSelected;
-  final Function(String) onAddPetPressed;
+  final Function(ServiceType) onAddPetPressed; // ← CAMBIO AQUÍ
 
   const ServiceCardsRow({
     super.key,
@@ -120,7 +120,7 @@ class ServiceCardsRow extends StatelessWidget {
                   color: isSelected ? Colors.white : AppColors.primary,
                   size: 28,
                 ),
-                onPressed: () => onAddPetPressed(service.name),
+                onPressed: () => onAddPetPressed(service), // ← CAMBIO AQUÍ
               ),
             ),
           ],

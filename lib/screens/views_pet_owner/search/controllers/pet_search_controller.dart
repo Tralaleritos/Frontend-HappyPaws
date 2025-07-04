@@ -107,21 +107,24 @@ class PetSearchController extends ChangeNotifier {
   }
 
   // Método para navegar a solicitar servicio - CORREGIDO
-  void navigateToAddService(BuildContext context, String service) {
+  void navigateToAddService(BuildContext context, int serviceTypeId, String serviceType) {
     final user = _authService.currentUser;
     if (user != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ServiceRequestScreen(
-            serviceType: service,
+            serviceTypeId: serviceTypeId,
+            serviceType: serviceType,
           ),
         ),
-      ).then((_) => loadAllPets()); // Recargar las mascotas al volver
+      ).then((_) => loadAllPets());
     } else {
       _showLoginDialog(context);
     }
   }
+
+
 
   // Mostrar diálogo de login - CORREGIDO el nombre del método
   void _showLoginDialog(BuildContext context) {
