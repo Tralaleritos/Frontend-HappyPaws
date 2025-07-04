@@ -218,7 +218,7 @@ class AuthService with ChangeNotifier {
         print('- ID: ${_currentUser?.id}');
         print('- Email: ${_currentUser?.email}');
         print('- Username: ${_currentUser?.username}');
-        print('- Roles: ${_currentUser?.roles.map((r) => "${r.id}:${r.name}").join(", ")}');
+        print('- Roles: ${_currentUser?.role}');
         notifyListeners();
       }
     } catch (e) {

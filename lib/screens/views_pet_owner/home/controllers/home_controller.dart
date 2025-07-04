@@ -92,6 +92,9 @@ class HomeController with ChangeNotifier {
   final Set<Circle> _circles = {};
   final Set<Marker> _caregiverMarkers = {};
   final Map<int, Marker> _caregiverMarkersCache = {};
+  // En la sección de estado del controlador
+  bool _mounted = true;
+  bool get mounted => _mounted;
 
   // Marcadores personalizados
   BitmapDescriptor? _caregiverIcon;
@@ -306,6 +309,10 @@ class HomeController with ChangeNotifier {
   void _startLocationUpdates() {
     _locationUpdateTimer?.cancel();
     _locationUpdateTimer = Timer.periodic(_locationUpdateInterval, (timer) async {
+      if (!mounted) { // Agregar esta verificación
+        timer.cancel();
+        return;
+      }
       debugPrint('[HomeController] Actualización automática de ubicación');
       await _updateLocationAndNotifyBackend();
     });
@@ -338,7 +345,7 @@ class HomeController with ChangeNotifier {
   Future<void> _updateLocationAndNotifyBackend() async {
     try {
       final locationObtained = await getCurrentLocation();
-      if (locationObtained && currentPosition != null) {
+      if (locationObtained && currentPosition != null && mounted) { // Agregar mounted check
         await _updateLocationInBackend();
         _addUserLocationMarker();
         notifyListeners();
@@ -347,7 +354,6 @@ class HomeController with ChangeNotifier {
       debugPrint('[HomeController] Error en actualización completa: $e');
     }
   }
-
   // =====================================
   // GESTIÓN DE MARCADORES
   // =====================================
@@ -478,6 +484,7 @@ class HomeController with ChangeNotifier {
     _updateTimer?.cancel();
 
     _updateTimer = Timer(_updateDebounceDelay, () {
+      if (!mounted) return; // Agregar esta verificación
       _pendingUpdate = false;
       _updateCaregiverMarkersOptimized();
       notifyListeners();
@@ -698,6 +705,7 @@ class HomeController with ChangeNotifier {
 
   @override
   void dispose() {
+    _mounted = false; // Agregar esta línea
     _locationUpdateTimer?.cancel();
     _updateTimer?.cancel();
     _notificationService.removeListener(_onCaregiverNotificationUpdate);
