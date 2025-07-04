@@ -4,6 +4,9 @@ import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/screens/views_pet_owner/search/service_request_screen.dart';
 
+import 'package:happyp/screens/views_pet_owner/home/widgets/pet_detail_screen.dart';
+
+
 import 'package:provider/provider.dart';
 
 class PetSearchController extends ChangeNotifier {
@@ -104,21 +107,24 @@ class PetSearchController extends ChangeNotifier {
   }
 
   // Método para navegar a solicitar servicio - CORREGIDO
-  void navigateToAddService(BuildContext context, String service) {
+  void navigateToAddService(BuildContext context, int serviceTypeId, String serviceType) {
     final user = _authService.currentUser;
     if (user != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ServiceRequestScreen(
-            serviceType: service,
+            serviceTypeId: serviceTypeId,
+            serviceType: serviceType,
           ),
         ),
-      ).then((_) => loadAllPets()); // Recargar las mascotas al volver
+      ).then((_) => loadAllPets());
     } else {
       _showLoginDialog(context);
     }
   }
+
+
 
   // Mostrar diálogo de login - CORREGIDO el nombre del método
   void _showLoginDialog(BuildContext context) {
@@ -151,14 +157,23 @@ class PetSearchController extends ChangeNotifier {
   }
 
   // Navegar a detalle de mascota
-  void navigateToPetDetail(BuildContext context, Pet pet) {
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (context) => PetDetailsScreen(pet: pet),
-    //   ),
-    // );
+  void navigateToPetDetail(BuildContext context, Pet pet) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PetDetailScreen(
+          pet: pet,
+          petService: _petService,
+        ),
+      ),
+    );
+
+    // Si result == true, significa que hubo cambios
+    if (result == true) {
+      await loadAllPets();
+    }
   }
+
 
   @override
   void dispose() {

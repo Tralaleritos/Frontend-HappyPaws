@@ -8,13 +8,20 @@ import 'package:happyp/data/service/offer_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+
+
+
 
 import '../../../data/service/service_type_service.dart';
 class ServiceRequestScreen extends StatefulWidget {
+  final int  serviceTypeId;
   final String serviceType;
 
   const ServiceRequestScreen({
     super.key,
+    required this.serviceTypeId,
     required this.serviceType,
   });
 
@@ -26,6 +33,11 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
+
+  final _locationNameController = TextEditingController();
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
+
 
   DateTime? _selectedDate;
   TimeOfDay? _startTime;
@@ -62,6 +74,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _petService = PetService();
     _serviceTypeService = ServiceTypeService();
     _initializeServices();
+    _getCurrentLocation();
   }
 
   Future<void> _initializeServices() async {
@@ -113,6 +126,52 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
   }
 
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    final placemarks = await placemarkFromCoordinates(
+      position.latitude,
+      position.longitude,
+    );
+
+    final placemark = placemarks.first;
+
+    setState(() {
+      _locationName =
+      "${placemark.street}, ${placemark.locality}, ${placemark.country}";
+
+      _locationNameController.text = _locationName;
+
+      _latitudeController.text = position.latitude.toStringAsFixed(6);
+      _longitudeController.text = position.longitude.toStringAsFixed(6);
+    });
+  }
+
+
+
+
   // Método para cargar servicios disponibles
   Future<void> _loadAvailableServices() async {
     try {
@@ -162,6 +221,9 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   void dispose() {
     _descriptionController.dispose();
     _priceController.dispose();
+    _locationNameController.dispose();
+    _latitudeController.dispose();   // 👈 Añadir
+    _longitudeController.dispose();
     super.dispose();
   }
 
@@ -262,6 +324,12 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       if (validPets.length != _selectedPets.length) {
         throw Exception('Algunas mascotas seleccionadas no tienen ID válido');
       }
+
+      // Obtener valores actuales de los campos por si han sido editados
+      _locationName = _locationNameController.text;
+      _locationLatitude = double.tryParse(_latitudeController.text);
+      _locationLongitude = double.tryParse(_longitudeController.text);
+
 
       // Crear la solicitud con la nueva estructura
       final request = CreateOfferRequest(
@@ -451,75 +519,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     );
   }
 
-  Widget _buildServiceCheckboxes() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Selecciona los servicios',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-
-        if (_loadingServices)
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else if (_availableServices.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: Text(
-              'No hay servicios disponibles',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          )
-        else
-          Column(
-            children: _availableServices.map((service) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: CheckboxListTile(
-                  title: Text(
-                    service.name,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(service.description),
-                  secondary: CircleAvatar(
-                    backgroundColor: AppColors.primary.withOpacity(0.1),
-                    child: Icon(
-                      Icons.home_repair_service,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  value: _selectedServices.contains(service),
-                  onChanged: (bool? selected) {
-                    setState(() {
-                      if (selected == true) {
-                        _selectedServices.add(service);
-                      } else {
-                        _selectedServices.remove(service);
-                      }
-                    });
-                  },
-                ),
-              );
-            }).toList(),
-          ),
-      ],
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -579,6 +578,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
               // Ubicación
               TextFormField(
+                controller: _locationNameController,
                 decoration: const InputDecoration(
                   labelText: 'Nombre de la ubicación',
                   border: OutlineInputBorder(),
@@ -597,12 +597,13 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 children: [
                   Expanded(
                     child: TextFormField(
+                      controller: _latitudeController,
                       decoration: const InputDecoration(
                         labelText: 'Latitud',
                         border: OutlineInputBorder(),
                       ),
+                      readOnly: true,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (val) => _locationLatitude = double.tryParse(val),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Ingresa latitud';
@@ -617,12 +618,13 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: TextFormField(
+                      controller: _longitudeController,
                       decoration: const InputDecoration(
                         labelText: 'Longitud',
                         border: OutlineInputBorder(),
                       ),
+                      readOnly: true,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (val) => _locationLongitude = double.tryParse(val),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Ingresa longitud';
@@ -637,6 +639,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
 
               // Fecha
               GestureDetector(
@@ -721,7 +724,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
               const SizedBox(height: 16),
 
-              _buildServiceCheckboxes(),
 
               const SizedBox(height: 24),
 

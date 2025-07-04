@@ -24,7 +24,7 @@ class ServiceTypeService {
   // Obtener todos los tipos de servicio disponibles
   Future<List<ServiceType>> getAllServiceTypes() async {
     final response = await http.get(
-      Uri.parse('$_baseUrl/service'), // Ajusta la URL según tu API
+      Uri.parse('$_baseUrl/services'), // Ajusta la URL según tu API
       headers: _headers,
     );
 
