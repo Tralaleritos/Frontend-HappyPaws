@@ -6,6 +6,7 @@ import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/screens/views_pet_owner/home/controllers/home_controller.dart';
 import 'package:happyp/screens/views_pet_owner/home/widgets/pet_section.dart';
 import 'package:provider/provider.dart';
+import '../notificactions/notification_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -96,13 +97,61 @@ class _HomeScreenContent extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      IconButton(
-                        onPressed: () {
-                          // Navegar a la pantalla de notificaciones
+                      Consumer<HomeController>(
+                        builder: (context, controller, child) {
+                          final notificationService = controller.notificationService;
+
+                          return Stack(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  // Marcar como leídas al abrir las notificaciones
+                                  notificationService.markAsRead();
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => NotificationScreen(
+                                        ownerId: controller.getCurrentOwnerId(),
+                                        serverUrl: controller.getServerUrl(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.notifications_outlined),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                              // Badge de notificaciones
+                              if (notificationService.unreadCount > 0)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Text(
+                                      notificationService.unreadCount > 99
+                                          ? '99+'
+                                          : notificationService.unreadCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
                         },
-                        icon: const Icon(Icons.notifications_outlined),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),

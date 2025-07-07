@@ -698,7 +698,7 @@ class HomeController with ChangeNotifier {
       debugPrint('[HomeController] Error inicializando NotificationService: $e');
     }
   }
-
+  NotificationService get notificationService => _notificationService;
   // =====================================
   // LIMPIEZA Y DISPOSE
   // =====================================
@@ -710,5 +710,15 @@ class HomeController with ChangeNotifier {
     _updateTimer?.cancel();
     _notificationService.removeListener(_onCaregiverNotificationUpdate);
     super.dispose();
+  }
+
+  int getCurrentOwnerId() {
+    // Retorna el ID del propietario actual
+    return ownerId != null ? int.parse(ownerId!) : 0;
+  }
+
+  getServerUrl() {
+    return ApiConstants.BASE_URL; // Ejemplo
+
   }
 }

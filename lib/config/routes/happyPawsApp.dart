@@ -123,9 +123,6 @@ class HappyPawsApp extends StatelessWidget {
               case '/messages':
                 page = const MessagesScreen();
                 break;
-              case '/notifications':
-                page = const NotificationScreen();
-                break;
               case '/profile':
                 page = const ProfileScreen();
                 break;

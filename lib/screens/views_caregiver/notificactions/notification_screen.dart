@@ -93,7 +93,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _acceptOffer(OfferResponse offer) {
-    _notificationService.acceptOffer(offer);
+
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

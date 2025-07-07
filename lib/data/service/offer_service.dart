@@ -4,8 +4,11 @@ import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/offers/offer.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/offers/accept_offer.dart';
+import '../models/offers/direct_offer.dart';
+
 class OfferService {
-  final String _baseUrl = ApiConstants.BASE_URL; // 👈 Usar constante
+  final String _baseUrl = ApiConstants.BASE_URL;
   String? _token;
 
   // Establecer el token
@@ -51,6 +54,62 @@ class OfferService {
       return OfferResponse.fromJson(jsonDecode(response.body));
     } else {
       throw Exception('Oferta no encontrada: ${response.body}');
+    }
+  }
+
+  // Aceptar oferta (solo para cuidadores)
+  Future<void> acceptOffer(AcceptOfferRequest request) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/offers/accept'),
+      headers: _headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    print('Accept offer - Status code: ${response.statusCode}');
+    print('Accept offer - Response body: ${response.body}');
+
+    if (response.statusCode == 204) {
+      // Éxito - No content
+      return;
+    } else {
+      throw Exception('Error al aceptar oferta: ${response.body}');
+    }
+  }
+
+  // Completar oferta (solo para cuidadores)
+  Future<void> completeOffer(int offerId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/offers/$offerId/complete'),
+      headers: _headers,
+    );
+
+    print('Complete offer - Status code: ${response.statusCode}');
+    print('Complete offer - Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      // Éxito
+      return;
+    } else {
+      throw Exception('Error al completar oferta: ${response.body}');
+    }
+  }
+
+  // Crear oferta directa a un cuidador específico
+  Future<OfferResponse> createDirectOffer(DirectOfferRequest request) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/offers/direct-offer'),
+      headers: _headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    print('Direct offer - Status code: ${response.statusCode}');
+    print('Direct offer - Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+      return OfferResponse.fromJson(jsonResponse);
+    } else {
+      throw Exception('Error al crear oferta directa: ${response.body}');
     }
   }
 
