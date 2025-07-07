@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final double amount;
+  final String serviceName;
+  final int offerId;
+
+  const PaymentScreen({
+    super.key,
+    required this.amount,
+    required this.serviceName,
+    required this.offerId,
+  });
 
   @override
-  PaymentScreenState createState() => PaymentScreenState(); // ← Clase pública
+  PaymentScreenState createState() => PaymentScreenState();
 }
 
 class PaymentScreenState extends State<PaymentScreen> {
@@ -17,6 +26,10 @@ class PaymentScreenState extends State<PaymentScreen> {
 
   bool _isProcessing = false;
   String _cardType = '';
+
+  // Método para calcular impuestos (puedes ajustar el porcentaje)
+  double get _taxes => widget.amount * 0.18; // 18% de impuestos
+  double get _total => widget.amount + _taxes;
 
   @override
   void initState() {
@@ -113,7 +126,7 @@ class PaymentScreenState extends State<PaymentScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Pago con Tarjeta'),
+        title: Text('Pago - Oferta #${widget.offerId}'),
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white,
         elevation: 0,
@@ -125,7 +138,7 @@ class PaymentScreenState extends State<PaymentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Resumen del pago
+              // Resumen del pago - MODIFICADO
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(20),
@@ -152,20 +165,28 @@ class PaymentScreenState extends State<PaymentScreen> {
                         color: Colors.grey[800],
                       ),
                     ),
+                    SizedBox(height: 8),
+                    Text(
+                      widget.serviceName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                     SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Subtotal:', style: TextStyle(fontSize: 16)),
-                        Text('\$129.99', style: TextStyle(fontSize: 16)),
+                        Text('Pago adelantado (50%):', style: TextStyle(fontSize: 16)),
+                        Text('S/. ${widget.amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 16)),
                       ],
                     ),
                     SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Impuestos:', style: TextStyle(fontSize: 16)),
-                        Text('\$13.00', style: TextStyle(fontSize: 16)),
+                        Text('Impuestos (18%):', style: TextStyle(fontSize: 16)),
+                        Text('S/. ${_taxes.toStringAsFixed(2)}', style: TextStyle(fontSize: 16)),
                       ],
                     ),
                     Divider(height: 20),
@@ -173,14 +194,14 @@ class PaymentScreenState extends State<PaymentScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Total:',
+                          'Total a pagar:',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          '\$142.99',
+                          'S/. ${_total.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -193,7 +214,7 @@ class PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               // Información de la tarjeta
               Container(
@@ -218,15 +239,17 @@ class PaymentScreenState extends State<PaymentScreen> {
                       children: [
                         Icon(Icons.credit_card, color: Colors.blue[600]),
                         SizedBox(width: 8),
-                        Text(
-                          'Información de la Tarjeta',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
+                        Expanded(
+                          child: Text(
+                            'Información de la Tarjeta',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Spacer(),
                         if (_cardType.isNotEmpty)
                           Container(
                             padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -245,7 +268,6 @@ class PaymentScreenState extends State<PaymentScreen> {
                           ),
                       ],
                     ),
-                    SizedBox(height: 20),
 
                     // Número de tarjeta
                     TextFormField(
@@ -458,7 +480,7 @@ class PaymentScreenState extends State<PaymentScreen> {
                       Icon(Icons.payment, size: 24),
                       SizedBox(width: 8),
                       Text(
-                        'Pagar \$142.99',
+                        'Pagar S/. ${_total.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

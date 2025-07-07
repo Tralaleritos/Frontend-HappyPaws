@@ -1,35 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
 import 'package:happyp/data/models/offers/offer.dart';
+import 'package:happyp/data/models/offers/direct_offer.dart';
 import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/models/pet/species.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/offer_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
+import 'package:happyp/data/service/service_type_service.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-class ServiceRequestScreen extends StatefulWidget {
-  final int  serviceTypeId;
-  final String serviceType;
+class DirectServiceRequestScreen extends StatefulWidget {
+  final int ownerId;
+  final int caregiverId;
+  final String? caregiverName;
 
-  const ServiceRequestScreen({
+  const DirectServiceRequestScreen({
     super.key,
-    required this.serviceTypeId,
-    required this.serviceType,
+    required this.ownerId,
+    required this.caregiverId,
+    this.caregiverName,
   });
 
   @override
-  State<ServiceRequestScreen> createState() => _ServiceRequestScreenState();
+  State<DirectServiceRequestScreen> createState() => _DirectServiceRequestScreenState();
 }
 
-class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
+class _DirectServiceRequestScreenState extends State<DirectServiceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-
   final _locationNameController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
@@ -43,11 +46,13 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
   bool _isLoading = false;
   bool _loadingPets = true;
+  bool _loadingServices = true;
 
   // Servicios
   late final OfferService _offerService;
   late final UserService _userService;
   late final PetService _petService;
+  late final ServiceTypeService _serviceTypeService;
 
   // Mascotas del usuario obtenidas del API
   List<Pet> _availablePets = [];
@@ -55,12 +60,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   // Mascotas seleccionadas
   final Set<Pet> _selectedPets = {};
 
+  // Servicios disponibles y seleccionados
+  List<ServiceType> _availableServices = [];
+  final Set<ServiceType> _selectedServices = {};
+
   @override
   void initState() {
     super.initState();
     _offerService = OfferService();
     _userService = UserService();
     _petService = PetService();
+    _serviceTypeService = ServiceTypeService();
     _initializeServices();
     _getCurrentLocation();
   }
@@ -73,9 +83,13 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       _offerService.setAuthToken(token);
       _userService.setAuthToken(token);
       _petService.setAuthToken(token);
+      _serviceTypeService.setAuthToken(token);
 
-      // Cargar mascotas del usuario
-      await _loadUserPets();
+      // Cargar datos en paralelo
+      await Future.wait([
+        _loadUserPets(),
+        _loadAvailableServices(),
+      ]);
     }
   }
 
@@ -145,8 +159,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
       setState(() {
         _locationName = "${placemark.street}, ${placemark.locality}, ${placemark.country}";
-        _locationLatitude = position.latitude;
-        _locationLongitude = position.longitude;
+        _locationLatitude = position.latitude;  // ← Asignar directamente a la variable
+        _locationLongitude = position.longitude; // ← Asignar directamente a la variable
 
         // Actualizar los controladores
         _locationNameController.text = _locationName;
@@ -161,6 +175,51 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         _showSnackBar('Error al obtener ubicación: $e', Colors.red);
       }
     }
+  }
+
+  // Método para cargar servicios disponibles desde el API
+  Future<void> _loadAvailableServices() async {
+    try {
+      setState(() {
+        _loadingServices = true;
+      });
+
+      // Llamada real al API para obtener los servicios
+      final services = await _serviceTypeService.getAllServiceTypes();
+
+      if (mounted) {
+        setState(() {
+          _availableServices = services;
+          _loadingServices = false;
+        });
+
+        print('Servicios cargados: ${services.length}');
+        for (var service in services) {
+          print('- ${service.name} (ID: ${service.id})');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          // Si falla la carga del API, usar servicios hardcodeados como fallback
+          _availableServices = _getHardcodedServices();
+          _loadingServices = false;
+        });
+        _showSnackBar('Usando servicios por defecto: $e', Colors.orange);
+        print('Error cargando servicios, usando hardcoded: $e');
+      }
+    }
+  }
+
+  // Servicios hardcodeados como fallback
+  List<ServiceType> _getHardcodedServices() {
+    return [
+      ServiceType(id: 1, name: 'Paseo', description: 'Paseo diario para mascotas'),
+      ServiceType(id: 2, name: 'Cuidado', description: 'Cuidado general de mascotas'),
+      ServiceType(id: 3, name: 'Alimentación', description: 'Alimentación y cuidado básico'),
+      ServiceType(id: 4, name: 'Veterinario', description: 'Acompañamiento veterinario'),
+      ServiceType(id: 5, name: 'Guardería', description: 'Guardería temporal'),
+    ];
   }
 
   @override
@@ -216,6 +275,14 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   }
 
   void _submitRequest() async {
+
+    // 🔍 DEBUG: Verificar valores antes de enviar
+    print('🔍 DEBUG - Verificando valores:');
+    print('  widget.ownerId: ${widget.ownerId}');
+    print('  widget.caregiverId: ${widget.caregiverId}');
+    print('  ownerId es null: ${widget.ownerId == null}');
+    print('  ownerId tipo: ${widget.ownerId.runtimeType}');
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -228,11 +295,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
     if (_locationName.isEmpty || _locationLatitude == null || _locationLongitude == null) {
       _showSnackBar('Por favor ingresa la ubicación completa', Colors.red);
+      print('❌ Falta ubicación: $_locationName (Lat: $_locationLatitude, Lng: $_locationLongitude)');
       return;
     }
 
     if (_selectedPets.isEmpty) {
       _showSnackBar('Por favor selecciona al menos una mascota', Colors.red);
+      return;
+    }
+
+    if (_selectedServices.isEmpty) {
+      _showSnackBar('Por favor selecciona al menos un servicio', Colors.red);
       return;
     }
 
@@ -247,19 +320,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     });
 
     try {
-      // Obtener el ID del usuario actual
-      String? userId = await _userService.getUserId();
-      print('UserID obtenido: $userId');
-
-      if (userId == null || userId.isEmpty) {
-        throw Exception('No se pudo obtener el ID del usuario. Por favor inicia sesión nuevamente.');
-      }
-
-      int? userIdInt = int.tryParse(userId);
-      if (userIdInt == null) {
-        throw Exception('ID de usuario inválido: $userId');
-      }
-
       // Validar mascotas seleccionadas
       List<Pet> validPets = _selectedPets.where((pet) => pet.id != 0).toList();
       if (validPets.length != _selectedPets.length) {
@@ -271,9 +331,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       _locationLatitude = double.tryParse(_latitudeController.text);
       _locationLongitude = double.tryParse(_longitudeController.text);
 
-      // Crear la solicitud con el serviceTypeId del widget
-      final request = CreateOfferRequest(
-        ownerId: userIdInt,
+      // Crear la solicitud directa con la nueva estructura
+      final request = DirectOfferRequest(
+        ownerId: widget.ownerId,
+        caregiverId: widget.caregiverId,
         locationName: _locationName,
         locationLatitude: _locationLatitude!,
         locationLongitude: _locationLongitude!,
@@ -283,20 +344,27 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         endTime: _formatTimeOfDay(_endTime!), // HH:mm:ss
         pets: _selectedPets.map((pet) => pet.id).toList(),
         price: price,
-        services: [widget.serviceTypeId], // Usar el serviceTypeId del widget
+        services: _selectedServices.map((service) => service.id).toList(),
       );
+      print('🔍 DEBUG - Request creado:');
+      print('  request.ownerId: ${request.ownerId}');
+      print('  request.caregiverId: ${request.caregiverId}');
+      print('  request.toString(): ${request.toString()}');
 
-      print('Enviando request: ${request.toString()}');
+      print('Enviando request directo: ${request.toString()}');
 
-      // Enviar la solicitud al backend
-      final response = await _offerService.createOffer(request);
+      // Enviar la solicitud directa al backend
+      final response = await _offerService.createDirectOffer(request);
       print('Respuesta recibida: ${response.toString()}');
 
       if (mounted) {
         String responseId = response.id.toString();
+        String caregiverText = widget.caregiverName != null
+            ? ' para ${widget.caregiverName}'
+            : '';
 
         _showSnackBar(
-          'Solicitud enviada exitosamente. ID: $responseId',
+          'Solicitud directa enviada exitosamente$caregiverText. ID: $responseId',
           Colors.green,
         );
         Navigator.pop(context, response);
@@ -305,7 +373,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     } catch (e) {
       print('Error completo: $e');
       if (mounted) {
-        _showSnackBar('Error al enviar solicitud: $e', Colors.red);
+        _showSnackBar('Error al enviar solicitud directa: $e', Colors.red);
       }
     } finally {
       if (mounted) {
@@ -459,11 +527,127 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     );
   }
 
+  Widget _buildServiceCheckboxes() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Selecciona los servicios',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 8),
+
+        if (_loadingServices)
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_availableServices.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.build,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No hay servicios disponibles',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _loadAvailableServices,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Recargar Servicios'),
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: _availableServices.map((service) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: CheckboxListTile(
+                  title: Text(
+                    service.name,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: service.description.isNotEmpty
+                      ? Text(
+                    service.description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                      : null,
+                  secondary: CircleAvatar(
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    child: Icon(
+                      Icons.room_service,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  value: _selectedServices.contains(service),
+                  onChanged: (bool? selected) {
+                    setState(() {
+                      if (selected == true) {
+                        _selectedServices.add(service);
+                      } else {
+                        _selectedServices.remove(service);
+                      }
+                    });
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+
+        if (!_loadingServices && _availableServices.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: _loadAvailableServices,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Actualizar servicios'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    String title = widget.caregiverName != null
+        ? 'Solicitud directa para ${widget.caregiverName}'
+        : 'Solicitud directa';
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Solicitar ${widget.serviceType}'),
+        title: Text(title),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
@@ -658,15 +842,20 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Mascotas
               _buildPetCheckboxes(),
+              const SizedBox(height: 16),
 
+              // Servicios
+              _buildServiceCheckboxes(),
               const SizedBox(height: 24),
 
               // Botón de envío
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: (_isLoading || _loadingPets || _availablePets.isEmpty)
+                  onPressed: (_isLoading || _loadingPets || _loadingServices ||
+                      _availablePets.isEmpty || _availableServices.isEmpty)
                       ? null
                       : _submitRequest,
                   style: ElevatedButton.styleFrom(
@@ -687,7 +876,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                     ),
                   )
                       : const Text(
-                    'Enviar Solicitud',
+                    'Enviar Solicitud Directa',
                     style: TextStyle(fontSize: 16),
                   ),
                 ),

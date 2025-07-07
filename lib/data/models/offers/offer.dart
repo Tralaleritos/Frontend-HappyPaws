@@ -96,25 +96,28 @@ class OfferResponse {
   });
 
   factory OfferResponse.fromJson(Map<String, dynamic> json) {
+    final loc = json['location'] as Map<String, dynamic>? ?? {};
+    final range = json['range'] as Map<String, dynamic>? ?? {};
+
     return OfferResponse(
       id: json['id'] ?? 0,
-      ownerId: json['ownerId'] ?? 0,
-      locationName: json['locationName'] ?? '',
-      locationLatitude: (json['locationLatitude'] ?? 0.0).toDouble(),
-      locationLongitude: (json['locationLongitude'] ?? 0.0).toDouble(),
+      ownerId: json['owner']['id'] ?? 0,
+      locationName: loc['name'] ?? '',
+      locationLatitude: (loc['latitude'] ?? 0.0).toDouble(),
+      locationLongitude: (loc['longitude'] ?? 0.0).toDouble(),
       description: json['description'] ?? '',
-      date: json['date'] ?? '',
-      startTime: json['startTime'] ?? '',
-      endTime: json['endTime'] ?? '',
-      pets: (json['pets'] as List<dynamic>?)
-          ?.map((petJson) => Pet.fromJson(petJson))
-          .toList() ?? [],
+      date: range['date'] ?? '',
+      startTime: range['startTime'] ?? '',
+      endTime: range['endTime'] ?? '',
+      pets: (json['pets'] as List<dynamic>? ?? [])
+          .map((p) => Pet.fromJson(p as Map<String, dynamic>))
+          .toList(),
       price: (json['price'] ?? 0.0).toDouble(),
-      services: (json['services'] as List<dynamic>?)
-          ?.map((serviceJson) => ServiceType.fromJson(serviceJson))
-          .toList() ?? [],
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      services: (json['services'] as List<dynamic>? ?? [])
+          .map((s) => ServiceType.fromJson(s as Map<String, dynamic>))
+          .toList(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
   }
 

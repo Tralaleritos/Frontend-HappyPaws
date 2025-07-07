@@ -8,9 +8,9 @@ class DirectOfferRequest {
   final String date;
   final String startTime;
   final String endTime;
-  final List<String> pets;
+  final List<int> pets;
   final double price;
-  final List<String> services;
+  final List<int> services;
 
   DirectOfferRequest({
     required this.ownerId,

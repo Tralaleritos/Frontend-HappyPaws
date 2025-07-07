@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:happyp/data/models/offers/offer_accept_response.dart';
 import 'package:happyp/data/service/notification_service.dart';
+import 'package:happyp/screens/views_pet_owner/notificactions/widgets/offer_details_screen.dart';
 
-import '../payment/payment_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   final int ownerId;
@@ -58,17 +58,26 @@ class _NotificationsScreenState extends State<NotificationScreen> {
       // Mostrar un snackbar para notificar al usuario
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('¡Oferta #${acceptedOffer.offerId}'),
+          content: Text('¡Oferta #${acceptedOffer.offerId} aceptada!'),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'Ver',
             textColor: Colors.white,
-            onPressed: () => _showOfferAcceptedDetails(acceptedOffer),
+            onPressed: () => _navigateToOfferDetails(acceptedOffer.offerId),
           ),
         ),
       );
     }
+  }
+
+  void _navigateToOfferDetails(int offerId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OfferDetailsScreen(offerId: offerId),
+      ),
+    );
   }
 
   void _showOfferDetails(OfferAcceptedResponse offer) {
@@ -130,12 +139,18 @@ class _NotificationsScreenState extends State<NotificationScreen> {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cerrar'),
             ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _navigateToOfferDetails(acceptedOffer.offerId);
+              },
+              child: const Text('Ver Detalles'),
+            ),
           ],
         );
       },
     );
   }
-
 
   void _clearAcceptedOffers() {
     setState(() {
@@ -294,14 +309,7 @@ class _NotificationsScreenState extends State<NotificationScreen> {
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ListTile(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PaymentScreen(), // Asegúrate de importar
-                        ),
-                      );
-                    },
+                    onTap: () => _navigateToOfferDetails(offer.offerId),
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue,
                       child: Text(
@@ -313,20 +321,26 @@ class _NotificationsScreenState extends State<NotificationScreen> {
                       ),
                     ),
                     title: Text(
-                      offer.caregiverImgUrl,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      'Oferta #${offer.offerId}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Contacto: ${offer.caregiverName}'),
+                        Text('Cuidador: ${offer.caregiverName}'),
                         const SizedBox(height: 4),
                         const Text(
                           '💰 Tienes que pagar el 50% del pago antes del día del servicio.',
                           style: TextStyle(color: Colors.redAccent),
                         ),
                       ],
+                    ),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey,
                     ),
                   ),
                 );

@@ -1,10 +1,11 @@
 // home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:happyp/config/themes/colors/AppColors.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/screens/views_pet_owner/home/controllers/home_controller.dart';
+import 'package:happyp/screens/views_pet_owner/home/widgets/direct_service_request_screen.dart';
 import 'package:happyp/screens/views_pet_owner/home/widgets/pet_section.dart';
+import 'package:happyp/screens/views_pet_owner/home/widgets/caregiver_map_widget.dart';
 import 'package:provider/provider.dart';
 import '../notificactions/notification_screen.dart';
 
@@ -211,92 +212,8 @@ class _HomeScreenContent extends StatelessWidget {
           ),
 
           // Mapa con cuidadores
-          Expanded(
-            child: Consumer<HomeController>(
-              builder: (context, controller, child) {
-                final caregivers = controller.nearbyCaregivers;
-
-                if (caregivers.isEmpty) {
-                  return Container(
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No hay cuidadores cercanos',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Intenta buscar en otra ubicación',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return Container(
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: GoogleMap(
-                      onMapCreated: (GoogleMapController mapController) {
-                        if (!controller.mapController.isCompleted) {
-                          controller.mapController.complete(mapController);
-                        }
-                      },
-                      initialCameraPosition: controller.initialCameraPosition,
-                      markers: controller.allMarkers,
-                      circles: controller.circles,
-                      zoomControlsEnabled: false,
-                      myLocationEnabled: true,
-                      myLocationButtonEnabled: true,
-                      mapType: MapType.normal,
-                      onTap: (LatLng position) {
-                        // Deseleccionar cuidador si se toca el mapa
-                        controller.selectCaregiver(null);
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
+          const Expanded(
+            child: CaregiverMapWidget(),
           ),
 
           // Panel inferior con información del cuidador seleccionado
@@ -447,8 +364,16 @@ class _HomeScreenContent extends StatelessWidget {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
-                              // Implementar lógica para contactar al cuidador
-                              // Por ejemplo, navegar a una pantalla de chat o reserva
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => DirectServiceRequestScreen(
+                                    ownerId: controller.getCurrentOwnerId(),
+                                    caregiverId: caregiver.id,
+                                    caregiverName: caregiver.userName,
+                                  ),
+                                ),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
