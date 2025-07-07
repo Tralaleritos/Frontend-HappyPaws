@@ -1,0 +1,2 @@
+C:/Users/PC/Desktop/Tralaleritos team/Frontend-HappyPaws/android/app/.cxx/RelWithDebInfo/o341h1x2/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/PC/Desktop/Tralaleritos team/Frontend-HappyPaws/android/app/.cxx/RelWithDebInfo/o341h1x2/armeabi-v7a/CMakeFiles/rebuild_cache.dir

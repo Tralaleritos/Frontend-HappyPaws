@@ -49,16 +49,15 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/logos/happyPaws1.png"
+  image_path: "assets/images/logo-app.png"
 
 flutter:
-
   uses-material-design: true
-
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/logos/happyPaws1.png

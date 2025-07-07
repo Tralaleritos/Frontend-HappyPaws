@@ -1,3 +1,4 @@
+// Alternativa más robusta con manejo de valores por defecto:
 class OfferAcceptedResponse {
   final int offerId;
   final int caregiverId;
@@ -17,7 +18,7 @@ class OfferAcceptedResponse {
       offerId: json['offerId'] as int,
       caregiverId: caregiver['id'] as int,
       caregiverName: caregiver['username'] as String,
-      caregiverImgUrl: caregiver['imgUrl'] as String,
+      caregiverImgUrl: caregiver['imgUrl'] as String? ?? '', // ✅ Valor por defecto si es null
     );
   }
 
