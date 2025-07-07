@@ -97,7 +97,7 @@ class OfferService {
     }
   }
 
-  // Completar oferta (solo para cuidadores)
+
   Future<void> completeOffer(int offerId) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/offers/$offerId/complete'),
