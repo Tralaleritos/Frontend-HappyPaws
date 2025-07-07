@@ -1,6 +1,9 @@
 // notification_screen.dart - Versión actualizada que usa el servicio global
 import 'package:flutter/material.dart';
 import 'package:happyp/data/service/notification_service.dart';
+import 'package:happyp/data/service/offer_service.dart';
+import 'package:happyp/data/service/auth_service.dart';
+import 'package:happyp/data/models/offers/accept_offer.dart';
 import '../../../data/models/notifications/offer_response.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -19,10 +22,14 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final NotificationService _notificationService = NotificationService();
+  final OfferService _offerService = OfferService();
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
     super.initState();
+    // Configurar el token del servicio de ofertas
+    _setupOfferService();
     // Marcar como leídas al entrar a la pantalla
     _notificationService.markAsRead();
     // Escuchar cambios en el servicio
@@ -38,6 +45,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _onNotificationServiceChanged() {
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  // Método para configurar el token en el servicio de ofertas
+  Future<void> _setupOfferService() async {
+    try {
+      final token = await _authService.getToken();
+      if (token != null) {
+        _offerService.setAuthToken(token);
+        print('Token configurado en OfferService');
+      } else {
+        print('No se encontró token de autenticación');
+      }
+    } catch (e) {
+      print('Error al configurar token: $e');
     }
   }
 
@@ -92,15 +114,97 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _acceptOffer(OfferResponse offer) {
+  void _acceptOffer(OfferResponse offer) async {
+    try {
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text('Aceptando oferta...'),
+              ],
+            ),
+          );
+        },
+      );
 
+      // Crear la request para aceptar la oferta
+      final acceptRequest = AcceptOfferRequest(
+        offerId: offer.id,
+        caregiverId: widget.caregiverId,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Oferta #${offer.id} aceptada'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+      // Llamar al servicio para aceptar la oferta
+      await _offerService.acceptOffer(acceptRequest);
+
+      // Cerrar el diálogo de carga
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Mostrar mensaje de éxito
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Oferta #${offer.id} aceptada exitosamente'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Opcional: Remover la notificación de la lista local
+      // _notificationService.removeNotification(offer.id);
+
+    } catch (e) {
+      // Cerrar el diálogo de carga si está abierto
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Mostrar mensaje de error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al aceptar oferta: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+
+      // Opcional: Mostrar diálogo de error más detallado
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Error'),
+              content: Text('No se pudo aceptar la oferta #${offer.id}.\n\nDetalle: ${e.toString()}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cerrar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _acceptOffer(offer); // Reintentar
+                  },
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    }
   }
 
   void _showDebugDialog() {

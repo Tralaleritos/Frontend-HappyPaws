@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:happyp/data/models/offers/offer.dart';
 import 'package:happyp/data/models/pet/pet_model.dart';
 import 'package:happyp/data/models/user/user.dart';
+import 'package:happyp/data/models/offers/accepted_offer_response.dart';
 import 'package:happyp/data/service/auth_service.dart';
 import 'package:happyp/data/service/pet_service.dart';
 import 'package:happyp/data/service/user_service.dart';
+import 'package:happyp/data/service/offer_service.dart';
 import 'package:provider/provider.dart';
 import 'package:happyp/screens/views_pet_owner/add_pet/add_pet_screen.dart';
+import 'package:intl/intl.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -17,14 +22,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isInit = true;
   bool _isLoading = false;
   bool _isLoadingPets = false;
+  bool _isLoadingOffers = false;
 
   // Servicios
   final UserService _userService = UserService();
   final PetService _petService = PetService();
+  final OfferService _offerService = OfferService();
 
   // Estado local
   User? _currentUser;
   List<Pet> _userPets = [];
+  List<AcceptedOfferResponse> _acceptedOffers = [];
 
   // Define the service variable here
   String service = ''; // You can set a default value or leave it empty
@@ -51,12 +59,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Configurar token en los servicios
         _userService.setAuthToken(token);
         _petService.setAuthToken(token);
+        _offerService.setAuthToken(token);
 
         // Cargar datos del usuario
         await _loadUserData();
 
         // Cargar mascotas del usuario
         await _loadUserPets();
+
+        // Cargar ofertas aceptadas
+        await _loadAcceptedOffers();
       }
     } catch (e) {
       print('Error inicializando ProfileScreen: $e');
@@ -95,6 +107,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoadingPets = false;
       });
     }
+  }
+
+  Future<void> _loadAcceptedOffers() async {
+    if (_currentUser == null) return;
+
+    setState(() {
+      _isLoadingOffers = true;
+    });
+
+    try {
+      final offers = await _offerService.getAcceptedOffers(int.parse(_currentUser!.id));
+      setState(() {
+        _acceptedOffers = offers;
+      });
+    } catch (e) {
+      print('Error cargando ofertas aceptadas: $e');
+    } finally {
+      setState(() {
+        _isLoadingOffers = false;
+      });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    if (dateOnly == DateTime(now.year, now.month, now.day)) {
+      return 'Hoy, ${DateFormat('HH:mm').format(date)}';
+    } else if (dateOnly == tomorrow) {
+      return 'Mañana, ${DateFormat('HH:mm').format(date)}';
+    } else {
+      return DateFormat('dd/MM/yyyy, HH:mm').format(date);
+    }
+  }
+
+  String _getServiceNames(List<ServiceType> services) {
+    return services.map((service) => service.name).join(', ');
   }
 
   @override
@@ -351,25 +402,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   const SizedBox(height: 5),
-                  // Próximas citas (mantenemos esta sección estática como pides)
-                  Text(
-                    'Próximas Citas',
-                    style: Theme.of(context).textTheme.titleLarge,
+
+                  // Sección de Ofertas Aceptadas (reemplaza las citas estáticas)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Mis Servicios Activos',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      if (_acceptedOffers.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            // Navegar a una pantalla con todas las ofertas
+                            // Navigator.of(context).pushNamed('/accepted-offers');
+                          },
+                          child: const Text('Ver todo'),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  _buildAppointmentCard(
-                    context,
-                    'Paseo con Max',
-                    'María López',
-                    'Mañana, 3:00 PM',
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAppointmentCard(
-                    context,
-                    'Veterinario para Luna',
-                    'Dr. García',
-                    'Viernes, 10:00 AM',
-                  ),
+
+                  if (_isLoadingOffers)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_acceptedOffers.isEmpty)
+                    Center(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 48,
+                            color: Colors.grey.withOpacity(0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No tienes servicios activos',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Tus ofertas aceptadas aparecerán aquí',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Column(
+                      children: _acceptedOffers.map((offer) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildOfferCard(context, offer),
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
             ),
@@ -379,65 +472,113 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAppointmentCard(
-      BuildContext context,
-      String title,
-      String provider,
-      String time,
-      ) {
+  Widget _buildOfferCard(BuildContext context, AcceptedOfferResponse offer) {
+    final isOwner = _currentUser?.id == offer.owner.id.toString();
+    final otherUser = isOwner ? offer.caregiver : offer.owner;
+    final userRole = isOwner ? 'Cuidador' : 'Dueño';
+
     return Card(
+      elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 4,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    provider,
-                    style: const TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                Container(
+                  width: 4,
+                  height: 50,
+                  decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Confirmado',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.green,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getServiceNames(offer.services),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$userRole: ${otherUser.username}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (offer.pets.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Mascotas: ${offer.pets.map((pet) => pet.name).join(', ')}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _formatDate(DateTime.parse(offer.range.date)),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'S/. ${offer.price.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Aceptado',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+            if (offer.description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                offer.description,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ],
         ),
       ),

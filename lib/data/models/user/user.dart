@@ -7,6 +7,7 @@ class User {
   final String password;
   final String phoneNumber;
   final List<Role> roles;
+  final List<int> offers; // NUEVO CAMPO
 
   User({
     required this.id, // Ahora es requerido
@@ -15,6 +16,7 @@ class User {
     required this.password,
     required this.phoneNumber,
     required this.roles,
+    this.offers = const [], // INICIALIZACIÓN VACÍA
   });
 
   User copyWith({
@@ -24,6 +26,7 @@ class User {
     String? password,
     String? phoneNumber,
     List<Role>? roles,
+    List<int>? offers,
   }) {
     return User(
       id: id ?? this.id,
@@ -32,6 +35,7 @@ class User {
       password: password ?? this.password,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       roles: roles ?? this.roles,
+      offers: offers ?? this.offers,
     );
   }
 

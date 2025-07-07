@@ -168,8 +168,7 @@ class AuthService with ChangeNotifier {
         password: '',
         phoneNumber: payloadMap['phoneNumber']?.toString() ?? '',
         roles: roles,
-        // Si tu modelo User tiene un campo 'role' directo, agrégalo aquí:
-        // role: primaryRole,
+        offers: [], // INICIALIZA AQUÍ LA LISTA VACÍA
       );
 
       print('✅ Usuario extraído del token:');

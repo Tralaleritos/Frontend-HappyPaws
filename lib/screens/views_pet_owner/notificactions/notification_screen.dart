@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:happyp/data/models/offers/offer_accept_response.dart';
 import 'package:happyp/data/service/notification_service.dart';
 
+import '../payment/payment_screen.dart';
+
 class NotificationScreen extends StatefulWidget {
   final int ownerId;
   final String serverUrl;
@@ -193,7 +195,7 @@ class _NotificationsScreenState extends State<NotificationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notificaciones de Ofertas Aceptadas'),
+        title: const Text('Ofertas Aceptadas'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
@@ -237,7 +239,7 @@ class _NotificationsScreenState extends State<NotificationScreen> {
                         ),
                       ),
                       Text(
-                        'Caregiver: ${widget.ownerId} | Total: ${notifications.length}',
+                        'Owner: ${widget.ownerId} | Total: ${notifications.length}',
                         style: TextStyle(
                           color: isConnected ? Colors.green.shade600 : Colors.red.shade600,
                           fontSize: 12,
@@ -290,11 +292,16 @@ class _NotificationsScreenState extends State<NotificationScreen> {
               itemBuilder: (context, index) {
                 final offer = notifications[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ListTile(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PaymentScreen(), // Asegúrate de importar
+                        ),
+                      );
+                    },
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue,
                       child: Text(
@@ -313,11 +320,14 @@ class _NotificationsScreenState extends State<NotificationScreen> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Por: ${offer.offerId}'),
-                        Text('Nombre: ${offer.caregiverName}'),
+                        Text('Contacto: ${offer.caregiverName}'),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '💰 Tienes que pagar el 50% del pago antes del día del servicio.',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
                       ],
                     ),
-                    trailing: const Icon(Icons.arrow_forward_ios),
                   ),
                 );
               },

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:happyp/core/constants/ApiConstants.dart';
 import 'package:happyp/data/models/offers/offer.dart';
+import 'package:happyp/data/models/offers/accepted_offer_response.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/offers/accept_offer.dart';
@@ -54,6 +55,26 @@ class OfferService {
       return OfferResponse.fromJson(jsonDecode(response.body));
     } else {
       throw Exception('Oferta no encontrada: ${response.body}');
+    }
+  }
+
+  // Obtener ofertas aceptadas del usuario (owner o caregiver)
+  Future<List<AcceptedOfferResponse>> getAcceptedOffers(int userId) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/offers/accepted/$userId'),
+      headers: _headers,
+    );
+
+    print('Get accepted offers - Status code: ${response.statusCode}');
+    print('Get accepted offers - Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonResponse = jsonDecode(response.body);
+      return jsonResponse
+          .map((data) => AcceptedOfferResponse.fromJson(data))
+          .toList();
+    } else {
+      throw Exception('Error al obtener ofertas aceptadas: ${response.body}');
     }
   }
 
