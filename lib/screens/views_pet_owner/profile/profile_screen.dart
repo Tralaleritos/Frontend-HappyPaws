@@ -118,6 +118,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final offers = await _offerService.getAcceptedOffers(int.parse(_currentUser!.id));
+
+      // 👇 DEBUG: Verificar si se están recibiendo ofertas
+      print('Ofertas aceptadas recibidas: ${offers.length}');
+      offers.forEach((o) => print('Oferta ID: ${o.id}, dueño: ${o.owner.username}, cuidador: ${o.caregiver.username}'));
+
       setState(() {
         _acceptedOffers = offers;
       });
@@ -129,6 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
     }
   }
+
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -143,6 +149,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return DateFormat('dd/MM/yyyy, HH:mm').format(date);
     }
   }
+
+  Future<void> _completeOffer(AcceptedOfferResponse offer) async {
+    try {
+      await _offerService.completeOffer(offer.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Oferta completada exitosamente')),
+      );
+      _loadAcceptedOffers(); // Recarga las ofertas
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al completar oferta: ${e.toString()}')),
+      );
+    }
+  }
+
 
   String _getServiceNames(List<ServiceType> services) {
     return services.map((service) => service.name).join(', ');
@@ -408,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Mis Servicios Activos',
+                        'Mis Servicios',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       if (_acceptedOffers.isNotEmpty)
@@ -577,6 +598,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ],
+
+            // 👇👇 AGREGADO: Botón "Completar Oferta" solo si es Owner
+            if (isOwner) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _completeOffer(offer),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Completar Oferta'),
+                  ),
+                ],
               ),
             ],
           ],

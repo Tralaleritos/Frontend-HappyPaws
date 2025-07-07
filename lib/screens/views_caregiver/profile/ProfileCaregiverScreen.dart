@@ -331,20 +331,6 @@ class _ProfileCaregiverScreenState extends State<ProfileCaregiverScreen> {
 
             const SizedBox(height: 12),
 
-            // Botón de completar oferta (si es necesario)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                ElevatedButton(
-                  onPressed: () => _completeOffer(offer),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Completar Oferta'),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -355,18 +341,4 @@ class _ProfileCaregiverScreenState extends State<ProfileCaregiverScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  Future<void> _completeOffer(AcceptedOfferResponse offer) async {
-    try {
-      await _offerService.completeOffer(offer.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Oferta completada exitosamente')),
-      );
-      // Recargar las ofertas
-      _loadAcceptedOffers();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al completar oferta: ${e.toString()}')),
-      );
-    }
-  }
 }
