@@ -375,12 +375,14 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
           ],
         ),
       )
-          : Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeHeader(),
-          _buildAvailabilityToggle(),
-        ],
+          : SingleChildScrollView( // Add scrollable container
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildWelcomeHeader(),
+            _buildAvailabilityToggle(),
+          ],
+        ),
       ),
     );
   }

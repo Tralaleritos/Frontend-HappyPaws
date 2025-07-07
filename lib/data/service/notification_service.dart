@@ -24,20 +24,27 @@ class NotificationService extends ChangeNotifier {
   String? _serverUrl;
   List<CaregiversNearbyResponse> _nearbyCaregivers = [];
 
-  // OPTIMIZACIÓN: Control de actualizaciones en batch
+  // Control de actualizaciones en batch
   Timer? _batchUpdateTimer;
   final Set<int> _pendingUpdates = {};
   final Set<int> _pendingRemovals = {};
 
-  // OPTIMIZACIÓN: Control de reconexión automática
+  // Control de reconexión automática mejorado
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 5;
-  static const Duration _reconnectDelay = Duration(seconds: 2);
+  static const Duration _reconnectDelay = Duration(seconds: 3);
 
-  // OPTIMIZACIÓN: Cache de datos para evitar búsquedas repetitivas
+  // NUEVO: Control de estado de conexión
+  bool _isConnecting = false;
+  bool _shouldReconnect = true;
+  DateTime? _lastDisconnectTime;
+  static const Duration _minimumReconnectInterval = Duration(seconds: 2);
+
+  // Cache de datos
   final Map<int, CaregiversNearbyResponse> _caregiverCache = {};
 
+  // Getters
   List<OfferResponse> get notifications => List.unmodifiable(_notifications);
   int get unreadCount => _unreadCount;
   bool get isConnected => _isConnected;
@@ -54,6 +61,7 @@ class NotificationService extends ChangeNotifier {
     _userId = userId;
     _caregiverId = caregiverId;
     _serverUrl = serverUrl;
+    _shouldReconnect = true;
     _connectToWebSocket();
   }
 
@@ -63,56 +71,81 @@ class NotificationService extends ChangeNotifier {
       return;
     }
 
-    _stompClient?.deactivate();
+    // NUEVO: Prevenir múltiples conexiones simultáneas
+    if (_isConnecting) {
+      debugPrint('[NotificationService] Ya hay una conexión en progreso, ignorando...');
+      return;
+    }
+
+    // NUEVO: Verificar intervalo mínimo entre reconexiones
+    if (_lastDisconnectTime != null) {
+      final timeSinceDisconnect = DateTime.now().difference(_lastDisconnectTime!);
+      if (timeSinceDisconnect < _minimumReconnectInterval) {
+        debugPrint('[NotificationService] Esperando antes de reconectar...');
+        _scheduleReconnect();
+        return;
+      }
+    }
+
+    _isConnecting = true;
+
+    // NUEVO: Cancelar cliente anterior de forma más robusta
+    if (_stompClient != null) {
+      try {
+        _stompClient!.deactivate();
+      } catch (e) {
+        debugPrint('[NotificationService] Error al desactivar cliente anterior: $e');
+      }
+      _stompClient = null;
+    }
+
     final wsUrl = '$_serverUrl/happy';
     debugPrint('[NotificationService] Conectando a WebSocket: $wsUrl');
 
     _stompClient = StompClient(
         config: StompConfig.SockJS(
-            url: wsUrl,
-            onConnect: _onConnect,
-            beforeConnect: () async {
-              _updateConnectionStatus('Conectando...');
-              debugPrint('[NotificationService] Iniciando conexión WebSocket...');
-            },
-            onWebSocketError: (error) {
-              _updateConnectionStatus('Error de WebSocket');
-              _isConnected = false;
-              debugPrint('[NotificationService] Error de WebSocket: $error');
-              _scheduleReconnect();
-              notifyListeners();
-            },
-            onStompError: (frame) {
-              _updateConnectionStatus('Error STOMP');
-              _isConnected = false;
-              debugPrint('[NotificationService] Error STOMP: ${frame.body}');
-              _scheduleReconnect();
-              notifyListeners();
-            },
-            onDisconnect: (frame) {
-              _updateConnectionStatus('Desconectado');
-              _isConnected = false;
-              debugPrint('[NotificationService] Desconectado del WebSocket');
-              _scheduleReconnect();
-              notifyListeners();
-            },
-            webSocketConnectHeaders: {
-              'Authorization': 'Bearer $_authToken',
-              'Content-Type': 'application/json'
-            },
-            stompConnectHeaders: {
-              'Authorization': 'Bearer $_authToken',
-              'login': _userId ?? '',
-              'passcode': _authToken ?? ''
-            }
+          url: wsUrl,
+          onConnect: _onConnect,
+          beforeConnect: () async {
+            _updateConnectionStatus('Conectando...');
+            debugPrint('[NotificationService] Iniciando conexión WebSocket...');
+          },
+          onWebSocketError: (error) {
+            debugPrint('[NotificationService] Error de WebSocket: $error');
+            _handleConnectionError('Error de WebSocket');
+          },
+          onStompError: (frame) {
+            debugPrint('[NotificationService] Error STOMP: ${frame.body}');
+            _handleConnectionError('Error STOMP');
+          },
+          onDisconnect: (frame) {
+            debugPrint('[NotificationService] Desconectado del WebSocket');
+            _handleDisconnection();
+          },
+          // NUEVO: Configuración de headers mejorada
+          webSocketConnectHeaders: {
+            'Authorization': 'Bearer $_authToken',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          stompConnectHeaders: {
+            'Authorization': 'Bearer $_authToken',
+            'login': _userId ?? '',
+            'passcode': _authToken ?? '',
+            'heart-beat': '10000,10000', // NUEVO: Heartbeat para mantener conexión
+          },
+          // NUEVO: Configuración de timeouts
+          connectionTimeout: const Duration(seconds: 10),
         )
     );
+
     _stompClient!.activate();
   }
 
   void _onConnect(StompFrame frame) {
     _isConnected = true;
-    _reconnectAttempts = 0; // Reset contador de reconexión
+    _isConnecting = false; // NUEVO: Marcar que ya no estamos conectando
+    _reconnectAttempts = 0;
     _updateConnectionStatus('Conectado');
 
     final caregiverTopic = '/topic/offers/$_caregiverId';
@@ -121,44 +154,87 @@ class NotificationService extends ChangeNotifier {
     debugPrint('[NotificationService] Conectado, suscribiéndose a: $caregiverTopic');
     debugPrint('[NotificationService] Conectado, suscribiéndose a: $ownerTopic');
 
-    _stompClient!.subscribe(
-        destination: caregiverTopic,
-        headers: {
-          'Authorization': 'Bearer $_authToken',
-          'id': 'sub-$_caregiverId'
-        },
-        callback: _onOfferReceived
-    );
+    try {
+      _stompClient!.subscribe(
+          destination: caregiverTopic,
+          headers: {
+            'Authorization': 'Bearer $_authToken',
+            'id': 'sub-$_caregiverId'
+          },
+          callback: _onOfferReceived
+      );
 
-    _stompClient!.subscribe(
-        destination: ownerTopic,
-        headers: {
-          'Authorization': 'Bearer $_authToken',
-          'id': 'sub-notify-$_userId'
-        },
-        callback: _onCaregiverNotificationReceived
-    );
+      _stompClient!.subscribe(
+          destination: ownerTopic,
+          headers: {
+            'Authorization': 'Bearer $_authToken',
+            'id': 'sub-notify-$_userId'
+          },
+          callback: _onCaregiverNotificationReceived
+      );
 
-    debugPrint('[NotificationService] Suscripción completada exitosamente');
+      debugPrint('[NotificationService] Suscripción completada exitosamente');
+    } catch (e) {
+      debugPrint('[NotificationService] Error en suscripción: $e');
+      _handleConnectionError('Error en suscripción');
+      return;
+    }
+
     notifyListeners();
   }
 
-  // OPTIMIZACIÓN: Programar reconexión automática
+  // NUEVO: Método para manejar errores de conexión
+  void _handleConnectionError(String errorType) {
+    _isConnected = false;
+    _isConnecting = false;
+    _updateConnectionStatus(errorType);
+
+    if (_shouldReconnect) {
+      _scheduleReconnect();
+    }
+
+    notifyListeners();
+  }
+
+  // NUEVO: Método para manejar desconexiones
+  void _handleDisconnection() {
+    _isConnected = false;
+    _isConnecting = false;
+    _lastDisconnectTime = DateTime.now();
+    _updateConnectionStatus('Desconectado');
+
+    if (_shouldReconnect) {
+      _scheduleReconnect();
+    }
+
+    notifyListeners();
+  }
+
+  // Programar reconexión automática mejorada
   void _scheduleReconnect() {
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       debugPrint('[NotificationService] Máximo de intentos de reconexión alcanzado');
+      _shouldReconnect = false;
+      _updateConnectionStatus('Conexión fallida');
       return;
     }
 
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(_reconnectDelay, () {
-      _reconnectAttempts++;
-      debugPrint('[NotificationService] Intento de reconexión ${_reconnectAttempts}/${_maxReconnectAttempts}');
-      _connectToWebSocket();
+
+    // NUEVO: Backoff exponencial para reconexión
+    final delaySeconds = _reconnectDelay.inSeconds * (_reconnectAttempts + 1);
+    final delay = Duration(seconds: delaySeconds.clamp(2, 30));
+
+    _reconnectTimer = Timer(delay, () {
+      if (_shouldReconnect && !_isConnecting && !_isConnected) {
+        _reconnectAttempts++;
+        debugPrint('[NotificationService] Intento de reconexión ${_reconnectAttempts}/${_maxReconnectAttempts}');
+        _connectToWebSocket();
+      }
     });
   }
 
-  // OPTIMIZACIÓN: Procesamiento en batch de notificaciones
+  // Procesamiento en batch de notificaciones
   void _onCaregiverNotificationReceived(StompFrame frame) {
     debugPrint('[NotificationService] Mensaje de notificación recibido: ${frame.body}');
     if (frame.body != null) {
@@ -187,13 +263,11 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
-  // OPTIMIZACIÓN: Actualizar datos del cuidador de forma inmediata
   void _updateCaregiverData(Map<String, dynamic> data) {
     try {
       final caregiverId = data['caregiverId'] as int;
       final caregiver = CaregiversNearbyResponse.fromJson(data);
 
-      // Crear nueva instancia con el ID correcto
       final updatedCaregiver = CaregiversNearbyResponse(
         id: caregiverId,
         userName: caregiver.userName,
@@ -202,7 +276,6 @@ class NotificationService extends ChangeNotifier {
         longitude: caregiver.longitude,
       );
 
-      // OPTIMIZACIÓN: Usar cache para búsquedas más rápidas
       final existingIndex = _caregiverCache.containsKey(caregiverId)
           ? _nearbyCaregivers.indexWhere((c) => c.id == caregiverId)
           : -1;
@@ -221,7 +294,6 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
-  // OPTIMIZACIÓN: Programar actualizaciones en batch
   void _scheduleBatchUpdate() {
     _batchUpdateTimer?.cancel();
     _batchUpdateTimer = Timer(const Duration(milliseconds: 50), () {
@@ -229,11 +301,9 @@ class NotificationService extends ChangeNotifier {
     });
   }
 
-  // OPTIMIZACIÓN: Procesar actualizaciones en batch
   void _processBatchUpdates() {
     bool hasChanges = false;
 
-    // Procesar remociones
     if (_pendingRemovals.isNotEmpty) {
       for (final caregiverId in _pendingRemovals) {
         _removeCaregiverFromListOptimized(caregiverId);
@@ -242,7 +312,6 @@ class NotificationService extends ChangeNotifier {
       hasChanges = true;
     }
 
-    // Procesar actualizaciones (ya procesadas en _updateCaregiverData)
     if (_pendingUpdates.isNotEmpty) {
       _pendingUpdates.clear();
       hasChanges = true;
@@ -254,7 +323,6 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
-  // OPTIMIZACIÓN: Versión optimizada de remoción usando cache
   void _removeCaregiverFromListOptimized(int caregiverId) {
     if (_caregiverCache.containsKey(caregiverId)) {
       final initialLength = _nearbyCaregivers.length;
@@ -267,20 +335,6 @@ class NotificationService extends ChangeNotifier {
       }
     } else {
       debugPrint('[NotificationService] No se encontró cuidador con ID: $caregiverId en cache');
-    }
-  }
-
-  // Método legacy mantenido para compatibilidad
-  void _removeCaregiverFromList(int caregiverId) {
-    final initialLength = _nearbyCaregivers.length;
-    _nearbyCaregivers.removeWhere((caregiver) => caregiver.id == caregiverId);
-    _caregiverCache.remove(caregiverId);
-    final removedCount = initialLength - _nearbyCaregivers.length;
-
-    if (removedCount > 0) {
-      debugPrint('[NotificationService] Removidos $removedCount cuidador(es) con ID: $caregiverId');
-    } else {
-      debugPrint('[NotificationService] No se encontró cuidador con ID: $caregiverId para remover');
     }
   }
 
@@ -328,13 +382,12 @@ class NotificationService extends ChangeNotifier {
 
   void clearNearbyCaregivers() {
     _nearbyCaregivers.clear();
-    _caregiverCache.clear(); // OPTIMIZACIÓN: Limpiar también el cache
+    _caregiverCache.clear();
     notifyListeners();
   }
 
-  // Método manual para remover un cuidador específico (útil para testing o casos especiales)
   void removeCaregiverById(int caregiverId) {
-    _removeCaregiverFromList(caregiverId);
+    _removeCaregiverFromListOptimized(caregiverId);
     notifyListeners();
   }
 
@@ -360,26 +413,42 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
+  // NUEVO: Método de reconexión manual mejorado
   void reconnect() {
     debugPrint('[NotificationService] Reconectando manualmente...');
-    _reconnectAttempts = 0; // Reset contador para reconexión manual
+    _reconnectAttempts = 0;
+    _shouldReconnect = true;
+    _isConnecting = false;
+    _lastDisconnectTime = null;
+
     if (_authToken != null && _userId != null && _caregiverId != null && _serverUrl != null) {
       _connectToWebSocket();
     }
   }
 
   void disconnect() {
-    _stompClient?.deactivate();
-    _stompClient = null;
+    _shouldReconnect = false; // NUEVO: Evitar reconexión automática
+    _reconnectTimer?.cancel();
+    _batchUpdateTimer?.cancel();
+
+    if (_stompClient != null) {
+      try {
+        _stompClient!.deactivate();
+      } catch (e) {
+        debugPrint('[NotificationService] Error al desconectar: $e');
+      }
+      _stompClient = null;
+    }
+
     _isConnected = false;
-    _reconnectTimer?.cancel(); // OPTIMIZACIÓN: Cancelar timer de reconexión
-    _batchUpdateTimer?.cancel(); // OPTIMIZACIÓN: Cancelar timer de batch update
+    _isConnecting = false;
     _updateConnectionStatus('Desconectado');
     debugPrint('[NotificationService] Servicio de notificaciones desconectado');
   }
 
   @override
   void dispose() {
+    _shouldReconnect = false;
     _reconnectTimer?.cancel();
     _batchUpdateTimer?.cancel();
     _caregiverCache.clear();
